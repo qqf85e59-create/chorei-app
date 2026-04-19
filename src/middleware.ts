@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { auth } from '@/lib/auth';
+import { getToken } from 'next-auth/jwt';
 
 export default async function middleware(request: NextRequest) {
-  const session = await auth();
+  // Edge環境で動作するように、DB等に依存しない getToken を使用
+  const token = await getToken({ req: request, secret: process.env.AUTH_SECRET });
   const { pathname } = request.nextUrl;
 
   // Public routes
@@ -12,14 +13,14 @@ export default async function middleware(request: NextRequest) {
   }
 
   // Redirect to login if not authenticated
-  if (!session) {
+  if (!token) {
     return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Admin-only routes
   const adminRoutes = ['/dashboard', '/rotation', '/members'];
   if (adminRoutes.some((route) => pathname.startsWith(route))) {
-    if ((session.user as { role: string }).role !== 'admin') {
+    if (token.role !== 'admin') {
       return NextResponse.redirect(new URL('/home', request.url));
     }
   }
