@@ -1,8 +1,6 @@
 'use client';
 
-import { signIn } from 'next-auth/react';
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useActionState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,38 +12,13 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { LogIn, AlertCircle } from 'lucide-react';
+import { authenticate } from './actions';
 
 export default function LoginPage() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const router = useRouter();
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-
-    try {
-      const result = await signIn('credentials', {
-        email,
-        password,
-        redirect: false,
-      });
-
-      if (result?.error) {
-        setError('メールアドレスまたはパスワードが正しくありません');
-      } else {
-        router.push('/');
-        router.refresh();
-      }
-    } catch {
-      setError('ログインに失敗しました');
-    } finally {
-      setLoading(false);
-    }
-  }
+  const [errorMessage, formAction, isPending] = useActionState(
+    authenticate,
+    undefined
+  );
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-primary/5 via-white to-brand-accent/5 px-4">
@@ -76,11 +49,11 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {error && (
+            <form action={formAction} className="space-y-4">
+              {errorMessage && (
                 <div className="flex items-center gap-2 rounded-lg border border-brand-danger/20 bg-red-50 p-3 text-sm text-brand-danger animate-fade-in">
                   <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                  <span>{error}</span>
+                  <span>{errorMessage}</span>
                 </div>
               )}
 
@@ -90,10 +63,9 @@ export default function LoginPage() {
                 </Label>
                 <Input
                   id="email"
+                  name="email"
                   type="email"
                   placeholder="example@attax.co.jp"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
                   required
                   className="border-brand-border focus:ring-brand-accent"
                 />
@@ -105,10 +77,9 @@ export default function LoginPage() {
                 </Label>
                 <Input
                   id="password"
+                  name="password"
                   type="password"
                   placeholder="パスワードを入力"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
                   required
                   className="border-brand-border focus:ring-brand-accent"
                 />
@@ -117,9 +88,9 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full bg-brand-primary hover:bg-brand-secondary transition-colors"
-                disabled={loading}
+                disabled={isPending}
               >
-                {loading ? (
+                {isPending ? (
                   <span className="flex items-center gap-2">
                     <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                     ログイン中...
