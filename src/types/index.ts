@@ -27,7 +27,7 @@ export interface SessionWithRelations {
   weekNumber: number;
   topicId: number;
   speakerId: string;
-  responderId: string | null;
+
   startTime: string;
   endTime: string;
   status: string;
@@ -38,11 +38,11 @@ export interface SessionWithRelations {
     name: string;
     grade: string;
   };
-  responder?: {
+  commentators: {
     id: string;
     name: string;
     grade: string;
-  } | null;
+  }[];
   topic: {
     id: number;
     topicText: string;

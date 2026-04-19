@@ -26,8 +26,11 @@ import {
   UserX,
   UserMinus,
   Clock,
+  Dices,
+  MessageSquare,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
+import { SpeechTimer } from '@/components/ui/timer';
 
 interface SessionData {
   id: number;
@@ -39,6 +42,7 @@ interface SessionData {
   speaker: { id: string; name: string; grade: string };
   topic: { id: number; topicText: string; weekNumber: number };
   phase: { id: number; name: string; phaseNumber: number };
+  commentators?: { id: string; name: string; grade: string }[];
 }
 
 interface AttendanceData {
@@ -63,6 +67,7 @@ export default function DashboardPage() {
   const [attendance, setAttendance] = useState<AttendanceData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -104,6 +109,28 @@ export default function DashboardPage() {
       console.error('Failed to fetch data:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function generateCommentators() {
+    if (!todaySession) return;
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/sessions/commentators', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: todaySession.id, count: 2 }),
+      });
+      if (res.ok) {
+        const newCols = await res.json();
+        setTodaySession({ ...todaySession, commentators: newCols });
+      } else {
+        alert('抽選に失敗しました。対象の出席者が不足している可能性があります。');
+      }
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -223,6 +250,45 @@ export default function DashboardPage() {
                       </p>
                     </div>
                   )}
+
+                  <Separator className="bg-brand-border" />
+                  
+                  {/* Commentators section */}
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <MessageSquare className="h-3.5 w-3.5" />
+                        コメンテーター（ランダム指名）
+                      </p>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={generateCommentators}
+                        disabled={generating || todaySession.status === 'completed'}
+                        className="h-8 text-xs border-brand-accent text-brand-accent hover:bg-brand-accent/10"
+                      >
+                        <Dices className={`h-3.5 w-3.5 mr-1 ${generating ? 'animate-spin' : ''}`} />
+                        {todaySession.commentators && todaySession.commentators.length > 0 ? '再抽選する' : '抽選する'}
+                      </Button>
+                    </div>
+                    {todaySession.commentators && todaySession.commentators.length > 0 ? (
+                      <div className="flex flex-col gap-2">
+                        {todaySession.commentators.map((c, idx) => (
+                          <div key={c.id} className="flex items-center justify-between p-3 rounded bg-brand-bg/50 border border-brand-border animate-slide-in" style={{ animationDelay: `${idx * 150}ms` }}>
+                            <div className="flex items-center gap-2">
+                              <Badge className="bg-brand-primary text-white h-5 w-5 rounded-full p-0 flex items-center justify-center">{idx + 1}</Badge>
+                              <span className="font-semibold text-brand-text">{c.name}</span>
+                            </div>
+                            <span className="text-xs text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="h-16 border-2 border-dashed border-brand-border rounded-lg flex items-center justify-center text-sm text-muted-foreground">
+                        未定（抽選してください）
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 <div className="text-center py-8">
@@ -320,6 +386,13 @@ export default function DashboardPage() {
 
         {/* Right column: Alerts + Quick links */}
         <div className="space-y-6">
+          {/* Timer */}
+          {todaySession && (
+            <div className="animate-slide-in">
+              <SpeechTimer defaultSeconds={180} />
+            </div>
+          )}
+
           {/* Alerts */}
           {alerts.length > 0 && (
             <Card className="border-brand-danger/30 shadow-md animate-slide-in">

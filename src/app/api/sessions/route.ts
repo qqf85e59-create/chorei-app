@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     where,
     include: {
       speaker: { select: { id: true, name: true, grade: true } },
-      responder: { select: { id: true, name: true, grade: true } },
+      commentators: { select: { id: true, name: true, grade: true } },
       topic: { select: { id: true, topicText: true, weekNumber: true } },
       phase: { select: { id: true, name: true, phaseNumber: true } },
     },

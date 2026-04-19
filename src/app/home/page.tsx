@@ -22,8 +22,10 @@ import {
   UserMinus,
   History,
   ArrowRight,
+  MessageSquare,
 } from 'lucide-react';
-import { DAY_LABELS } from '@/lib/constants';
+import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
+import { SpeechTimer } from '@/components/ui/timer';
 
 interface SessionData {
   id: number;
@@ -34,6 +36,7 @@ interface SessionData {
   speaker: { id: string; name: string; grade: string };
   topic: { id: number; topicText: string; weekNumber: number };
   phase: { id: number; name: string; phaseNumber: number };
+  commentators?: { id: string; name: string; grade: string }[];
 }
 
 export default function HomePage() {
@@ -186,6 +189,27 @@ export default function HomePage() {
                     )}
                   </p>
                 </div>
+
+                {todaySession.commentators && todaySession.commentators.length > 0 && (
+                  <div className="rounded-lg border border-brand-border bg-brand-bg/50 p-4 animate-fade-in">
+                    <p className="text-xs text-muted-foreground mb-2 flex items-center gap-1">
+                      <MessageSquare className="h-4 w-4" />
+                      本日のコメンテーター
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {todaySession.commentators.map((c, idx) => (
+                        <div key={c.id} className="flex items-center gap-2">
+                          <Badge className="bg-brand-primary text-white h-5 w-5 rounded-full p-0 flex items-center justify-center">{idx + 1}</Badge>
+                          <span className="font-medium text-brand-text">{c.name}</span>
+                          <span className="text-xs text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</span>
+                          {c.id === session?.user?.id && (
+                            <Badge className="bg-brand-accent text-white ml-2 text-[10px] h-4">あなたです</Badge>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="text-center py-6">
@@ -197,6 +221,13 @@ export default function HomePage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Timer */}
+        {todaySession && todaySession.status !== 'completed' && (
+          <div className="animate-slide-in" style={{ animationDelay: '100ms' }}>
+            <SpeechTimer defaultSeconds={180} />
+          </div>
+        )}
 
         {/* Next Speaking */}
         {nextSpeaking && (

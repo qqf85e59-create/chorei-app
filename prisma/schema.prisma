@@ -17,8 +17,8 @@ model User {
   role      String   @default("member")
   createdAt DateTime @default(now())
 
-  speakerSessions   Session[]        @relation("speaker")
-  responderSessions Session[]        @relation("responder")
+  speakerSessions     Session[]        @relation("speaker")
+  commentatorSessions Session[]        @relation("SessionCommentators")
   attendances       Attendance[]
   absenceRequests   AbsenceRequest[]
 }
@@ -54,7 +54,6 @@ model Session {
   weekNumber  Int
   topicId     Int
   speakerId   String
-  responderId String?
   startTime   String   @default("09:00")
   endTime     String   @default("09:10")
   status      String   @default("scheduled")
@@ -64,7 +63,7 @@ model Session {
   phase           Phase            @relation(fields: [phaseId], references: [id])
   topic           Topic            @relation(fields: [topicId], references: [id])
   speaker         User             @relation("speaker", fields: [speakerId], references: [id])
-  responder       User?            @relation("responder", fields: [responderId], references: [id])
+  commentators    User[]           @relation("SessionCommentators")
   attendances     Attendance[]
   absenceRequests AbsenceRequest[]
 }
