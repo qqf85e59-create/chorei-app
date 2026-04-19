@@ -104,6 +104,7 @@ export async function rescheduleForAbsence(
   if (session.roundNumber === 1) {
     // Check if speaker is E2a or E2b at the beginning (exception case)
     if (
+      session.speaker &&
       ['E2a', 'E2b'].includes(session.speaker.grade) &&
       session.weekNumber <= 1
     ) {
@@ -124,7 +125,7 @@ export async function rescheduleForAbsence(
 
     // Shift speakers forward and add absent speaker at end
     if (remainingSessions.length > 0) {
-      const speakers = remainingSessions.map((s) => s.speakerId);
+      const speakers = remainingSessions.map((s) => s.speakerId).filter(Boolean);
       speakers.push(absentUserId);
 
       // Update current session's speaker to next in line
@@ -136,7 +137,7 @@ export async function rescheduleForAbsence(
   return { action: 'manual' };
 }
 
-function getSessionDates(
+export function getSessionDates(
   startDate: Date,
   count: number,
   holidaySet: Set<string>
@@ -159,7 +160,7 @@ function getSessionDates(
   return dates;
 }
 
-function getWeekNumber(date: Date, startDate: Date): number {
+export function getWeekNumber(date: Date, startDate: Date): number {
   const msPerDay = 86400000;
   const daysDiff = Math.floor(
     (date.getTime() - startDate.getTime()) / msPerDay

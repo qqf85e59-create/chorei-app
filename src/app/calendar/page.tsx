@@ -24,7 +24,7 @@ import {
   Mic,
   BookOpen,
 } from 'lucide-react';
-import { DAY_LABELS } from '@/lib/constants';
+import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 
 interface SessionData {
   id: number;
@@ -293,7 +293,7 @@ export default function CalendarPage() {
                         className="mt-1 rounded bg-brand-primary/10 px-1 py-0.5 text-[10px] sm:text-xs truncate"
                       >
                         <span className="font-medium text-brand-primary">
-                          {s.speaker.name}
+                          {s.speaker?.name ?? '不在'}
                         </span>
                       </div>
                     ))}
@@ -423,8 +423,11 @@ export default function CalendarPage() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">発話者</p>
-                <p className="text-sm font-semibold text-brand-primary">
-                  {selectedSession.speaker.name}
+                <p className="text-base font-medium text-brand-primary">
+                  {selectedSession.speaker?.name ?? '不在（リスケジュール）'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedSession.speaker ? (GRADE_LABELS[selectedSession.speaker.grade] || selectedSession.speaker.grade) : ''}
                 </p>
               </div>
               <div>

@@ -235,11 +235,10 @@ export default function DashboardPage() {
                       </p>
                       <p className="text-base font-semibold text-brand-primary flex items-center gap-2">
                         <Mic className="h-4 w-4 text-brand-accent" />
-                        {todaySession.speaker.name}
+                        {todaySession.speaker?.name ?? '不在（延期）'}
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        {GRADE_LABELS[todaySession.speaker.grade] ||
-                          todaySession.speaker.grade}
+                        {todaySession.speaker ? (GRADE_LABELS[todaySession.speaker.grade] || todaySession.speaker.grade) : ''}
                       </p>
                     </div>
                   </div>
@@ -293,6 +292,17 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
+                  
+                  {todaySession.adminNote && (
+                    <div className="mt-4 p-3 bg-brand-accent/5 border border-brand-accent/20 rounded-md flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-brand-accent mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-sm font-semibold text-brand-accent">システム通知</p>
+                        <p className="text-sm text-brand-text/80">{todaySession.adminNote}</p>
+                      </div>
+                    </div>
+                  )}
+
                 </div>
               ) : (
                 <div className="text-center py-8">

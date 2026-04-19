@@ -24,6 +24,7 @@ import {
   ArrowRight,
   MessageSquare,
   Video,
+  AlertTriangle,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
@@ -36,7 +37,8 @@ interface SessionData {
   startTime: string;
   endTime: string;
   status: string;
-  speaker: { id: string; name: string; grade: string };
+  adminNote: string | null;
+  speaker: { id: string; name: string; grade: string } | null;
   topic: { id: number; topicText: string; weekNumber: number };
   phase: { id: number; name: string; phaseNumber: number };
   commentators?: { id: string; name: string; grade: string }[];
@@ -91,7 +93,7 @@ export default function HomePage() {
         // Next speaking assignment
         const futureSpeaking = allSessions.filter(
           (s) =>
-            s.speaker.id === userId &&
+            s.speaker?.id === userId &&
             new Date(s.date) > todayDate &&
             s.status === 'scheduled'
         );
@@ -102,7 +104,7 @@ export default function HomePage() {
         // Past speaking (last 3)
         const pastSpeakingAll = allSessions.filter(
           (s) =>
-            s.speaker.id === userId &&
+            s.speaker?.id === userId &&
             new Date(s.date) <= todayDate
         );
         setPastSpeaking(pastSpeakingAll.slice(-3).reverse());
@@ -199,12 +201,15 @@ export default function HomePage() {
                   <p className="text-xs text-muted-foreground mb-1">発話者</p>
                   <p className="text-lg font-semibold text-brand-primary flex items-center gap-2">
                     <Mic className="h-5 w-5 text-brand-accent" />
-                    {todaySession.speaker.name}
-                    {todaySession.speaker.id === session?.user?.id && (
+                    {todaySession.speaker?.name ?? '不在（延期）'}
+                    {todaySession.speaker?.id === session?.user?.id && (
                       <Badge className="bg-brand-primary text-white ml-2">
                         あなたです
                       </Badge>
                     )}
+                  </p>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {todaySession.speaker ? (GRADE_LABELS[todaySession.speaker.grade] || todaySession.speaker.grade) : ''}
                   </p>
                 </div>
 
@@ -225,6 +230,16 @@ export default function HomePage() {
                           )}
                         </div>
                       ))}
+                    </div>
+                  </div>
+                )}
+
+                {todaySession.adminNote && (
+                  <div className="mt-4 p-3 bg-brand-accent/5 border border-brand-accent/20 rounded-md flex items-start gap-2 animate-fade-in">
+                    <AlertTriangle className="h-4 w-4 text-brand-accent mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold text-brand-accent">システム通知</p>
+                      <p className="text-sm text-brand-text/80">{todaySession.adminNote}</p>
                     </div>
                   </div>
                 )}

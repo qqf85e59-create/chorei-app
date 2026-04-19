@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface NavItem {
   label: string;
@@ -77,6 +77,27 @@ export function Header() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [hasAutoOpened, setHasAutoOpened] = useState(false);
+
+  useEffect(() => {
+    // Only auto-open if on smaller screens (where hamburger is visible) and we haven't done it yet
+    if (!hasAutoOpened && window.innerWidth < 1280) {
+      setHasAutoOpened(true);
+      
+      const openTimer = setTimeout(() => {
+        setMobileOpen(true);
+      }, 500);
+
+      const closeTimer = setTimeout(() => {
+        setMobileOpen(false);
+      }, 2000);
+
+      return () => {
+        clearTimeout(openTimer);
+        clearTimeout(closeTimer);
+      };
+    }
+  }, [hasAutoOpened]);
 
   const userRole = (session?.user as { role?: string })?.role || 'member';
   const filteredItems = navItems.filter(
