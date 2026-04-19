@@ -187,7 +187,7 @@ export default function RotationPage() {
       <Card className="border-brand-border shadow-sm mb-6">
         <CardContent className="flex flex-wrap items-center gap-4 p-4">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={filterSpeaker} onValueChange={setFilterSpeaker}>
+          <Select value={filterSpeaker} onValueChange={(v) => setFilterSpeaker(v || '')}>
             <SelectTrigger className="w-40 border-brand-border">
               <SelectValue placeholder="発話者絞込" />
             </SelectTrigger>
@@ -200,7 +200,7 @@ export default function RotationPage() {
               ))}
             </SelectContent>
           </Select>
-          <Select value={filterRound} onValueChange={setFilterRound}>
+          <Select value={filterRound} onValueChange={(v) => setFilterRound(v || '')}>
             <SelectTrigger className="w-32 border-brand-border">
               <SelectValue placeholder="巡目" />
             </SelectTrigger>
@@ -301,15 +301,17 @@ export default function RotationPage() {
                     {userRole === 'admin' && (
                       <TableCell>
                         <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEdit(s)}
-                              className="hover:bg-brand-bg"
-                            >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
+                          <DialogTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEdit(s)}
+                                className="hover:bg-brand-bg"
+                              />
+                            }
+                          >
+                            <Edit className="h-3.5 w-3.5" />
                           </DialogTrigger>
                           <DialogContent className="sm:max-w-md">
                             <DialogHeader>
@@ -327,7 +329,7 @@ export default function RotationPage() {
                                   <Select
                                     value={editForm.speakerId}
                                     onValueChange={(v) =>
-                                      setEditForm({ ...editForm, speakerId: v })
+                                      setEditForm({ ...editForm, speakerId: v || '' })
                                     }
                                   >
                                     <SelectTrigger className="border-brand-border">
@@ -347,7 +349,7 @@ export default function RotationPage() {
                                   <Select
                                     value={editForm.topicId}
                                     onValueChange={(v) =>
-                                      setEditForm({ ...editForm, topicId: v })
+                                      setEditForm({ ...editForm, topicId: v || '' })
                                     }
                                   >
                                     <SelectTrigger className="border-brand-border">
@@ -398,7 +400,7 @@ export default function RotationPage() {
                                   <Select
                                     value={editForm.status}
                                     onValueChange={(v) =>
-                                      setEditForm({ ...editForm, status: v })
+                                      setEditForm({ ...editForm, status: v || '' })
                                     }
                                   >
                                     <SelectTrigger className="border-brand-border">

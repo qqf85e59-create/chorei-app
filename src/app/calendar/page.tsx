@@ -169,7 +169,7 @@ export default function CalendarPage() {
           </Button>
           <Select
             value={viewMode}
-            onValueChange={(v) => setViewMode(v as 'month' | 'week')}
+            onValueChange={(v) => setViewMode((v || 'month') as 'month' | 'week')}
           >
             <SelectTrigger className="w-24 border-brand-border">
               <SelectValue />

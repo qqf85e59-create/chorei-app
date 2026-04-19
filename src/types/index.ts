@@ -18,13 +18,6 @@ declare module 'next-auth' {
   }
 }
 
-declare module 'next-auth/jwt' {
-  interface JWT {
-    id: string;
-    role: string;
-    grade: string;
-  }
-}
 
 // Session with relations
 export interface SessionWithRelations {

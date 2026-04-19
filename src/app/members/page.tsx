@@ -165,14 +165,16 @@ export default function MembersPage() {
         </div>
 
         <Dialog open={isCreating} onOpenChange={setIsCreating}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={openCreate}
-              className="bg-brand-primary hover:bg-brand-secondary"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              追加
-            </Button>
+          <DialogTrigger
+            render={
+              <Button
+                onClick={openCreate}
+                className="bg-brand-primary hover:bg-brand-secondary"
+              />
+            }
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            追加
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -288,15 +290,17 @@ export default function MembersPage() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <Dialog>
-                          <DialogTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => openEdit(user)}
-                              className="hover:bg-brand-bg"
-                            >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
+                          <DialogTrigger
+                            render={
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEdit(user)}
+                                className="hover:bg-brand-bg"
+                              />
+                            }
+                          >
+                            <Edit className="h-3.5 w-3.5" />
                           </DialogTrigger>
                           <DialogContent>
                             <DialogHeader>
@@ -370,7 +374,7 @@ function UserForm({
         <Label>等級</Label>
         <Select
           value={formData.grade}
-          onValueChange={(v) => setFormData({ ...formData, grade: v })}
+          onValueChange={(v) => setFormData({ ...formData, grade: v || '' })}
         >
           <SelectTrigger className="border-brand-border">
             <SelectValue />
@@ -398,7 +402,7 @@ function UserForm({
         <Label>権限</Label>
         <Select
           value={formData.role}
-          onValueChange={(v) => setFormData({ ...formData, role: v })}
+          onValueChange={(v) => setFormData({ ...formData, role: v || '' })}
         >
           <SelectTrigger className="border-brand-border">
             <SelectValue />

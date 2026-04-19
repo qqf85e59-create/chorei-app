@@ -181,9 +181,9 @@ export default function AbsencePage() {
                   <CalendarDays className="inline h-4 w-4 mr-1" />
                   申告対象日
                 </Label>
-                <Select
-                  value={selectedSessionId}
-                  onValueChange={setSelectedSessionId}
+                  <Select
+                    value={selectedSessionId}
+                    onValueChange={(v) => setSelectedSessionId(v || '')}
                 >
                   <SelectTrigger className="border-brand-border">
                     <SelectValue placeholder="日付を選択してください" />
@@ -200,7 +200,7 @@ export default function AbsencePage() {
 
               <div className="space-y-2">
                 <Label className="text-brand-text">区分</Label>
-                <Select value={absenceType} onValueChange={setAbsenceType}>
+                <Select value={absenceType} onValueChange={(v) => setAbsenceType(v || '')}>
                   <SelectTrigger className="border-brand-border">
                     <SelectValue />
                   </SelectTrigger>
