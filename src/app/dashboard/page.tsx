@@ -28,6 +28,7 @@ import {
   Clock,
   Dices,
   MessageSquare,
+  FileText,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
@@ -491,6 +492,35 @@ export default function DashboardPage() {
                   <TrendingUp className="h-5 w-5 text-brand-accent" />
                   <span className="text-xs">フェーズ進捗</span>
                 </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Grand Rule summary */}
+          <Card className="border-brand-border shadow-md">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-brand-primary flex items-center gap-2">
+                <FileText className="h-5 w-5" />
+                グランドルール（概要）
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2 text-sm text-brand-text">
+                <li className="flex items-start gap-2">
+                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center">1</Badge>
+                  <span>心理的安全性を高めるため、発表は原則称賛する</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center">2</Badge>
+                  <span>各自の「価値観・考え方」を知るための場とする</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center">3</Badge>
+                  <span>役職・等級に関わらず、フラットな態度で参加する</span>
+                </li>
+              </ul>
+              <Link href="/grand-rule" className="block mt-4 text-xs text-brand-accent hover:underline text-right relative z-20">
+                すべて見る ＞
               </Link>
             </CardContent>
           </Card>

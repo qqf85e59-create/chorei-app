@@ -40,13 +40,13 @@ export async function POST(request: Request) {
       },
     },
     update: {
-      status: type === 'absent' ? 'absent' : 'left_early',
+      status: type === 'absent' ? 'absent' : type === 'unspoken' ? 'unspoken' : 'left_early',
       reportedAt: new Date(),
     },
     create: {
       sessionId,
       userId: session.user.id,
-      status: type === 'absent' ? 'absent' : 'left_early',
+      status: type === 'absent' ? 'absent' : type === 'unspoken' ? 'unspoken' : 'left_early',
       reportedAt: new Date(),
     },
   });

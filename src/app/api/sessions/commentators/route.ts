@@ -34,7 +34,7 @@ export async function POST(request: Request) {
     const attendances = await prisma.attendance.findMany({
       where: {
         sessionId,
-        status: { in: ['absent', 'left_early'] }
+        status: { in: ['absent', 'left_early', 'unspoken'] }
       }
     });
     

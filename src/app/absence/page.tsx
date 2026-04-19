@@ -206,6 +206,7 @@ export default function AbsencePage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="absent">欠席</SelectItem>
+                    <SelectItem value="unspoken">聴講のみ（無言）</SelectItem>
                     <SelectItem value="leave_early">途中退出</SelectItem>
                   </SelectContent>
                 </Select>

@@ -68,8 +68,10 @@ export default function CalendarPage() {
         fetch('/api/sessions'),
         fetch('/api/holidays?year=2026'),
       ]);
-      setSessions(await sessionsRes.json());
-      setHolidays(await holidaysRes.json());
+      const sessionData = await sessionsRes.json();
+      const holidayData = await holidaysRes.json();
+      if (Array.isArray(sessionData)) setSessions(sessionData);
+      if (Array.isArray(holidayData)) setHolidays(holidayData);
     } catch (error) {
       console.error('Failed to fetch:', error);
     } finally {
