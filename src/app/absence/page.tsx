@@ -181,28 +181,28 @@ export default function AbsencePage() {
                   <CalendarDays className="inline h-4 w-4 mr-1" />
                   申告対象日
                 </Label>
-                  <Select
+                  <select
                     value={selectedSessionId}
-                    onValueChange={(v) => setSelectedSessionId(v || '')}
-                >
-                  <SelectTrigger className="border-brand-border">
-                    <SelectValue placeholder="日付を選択してください" />
-                  </SelectTrigger>
-                  <SelectContent>
+                    onChange={(e) => setSelectedSessionId(e.target.value)}
+                    className="flex h-10 w-full items-center justify-between rounded-md border border-brand-border bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-brand-accent focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 appearance-none"
+                    required
+                  >
+                    <option value="" disabled>日付を選択してください</option>
                     {sessions.map((s) => (
-                      <SelectItem key={s.id} value={String(s.id)}>
+                      <option key={s.id} value={String(s.id)}>
                         {formatDate(s.date)} {s.startTime}〜{s.endTime}
-                      </SelectItem>
+                      </option>
                     ))}
-                  </SelectContent>
-                </Select>
+                  </select>
               </div>
 
               <div className="space-y-2">
                 <Label className="text-brand-text">区分</Label>
                 <Select value={absenceType} onValueChange={(v) => setAbsenceType(v || '')}>
                   <SelectTrigger className="border-brand-border">
-                    <SelectValue />
+                    <SelectValue>
+                      {absenceType === 'absent' ? '欠席' : absenceType === 'unspoken' ? '聴講のみ（無言）' : absenceType === 'leave_early' ? '途中退出' : ''}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="absent">欠席</SelectItem>

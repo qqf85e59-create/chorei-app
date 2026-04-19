@@ -29,9 +29,12 @@ import {
   Dices,
   MessageSquare,
   FileText,
+  Video,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
+
+const ZOOM_URL = "https://zoom.us/j/1234567890"; // 仮のURL: 実運用に合わせて変更してください
 
 interface SessionData {
   id: number;
@@ -496,32 +499,48 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Grand Rule summary */}
+          {/* Grand Rule fully text */}
           <Card className="border-brand-border shadow-md">
-            <CardHeader className="pb-3">
+            <CardHeader className="pb-3 bg-brand-bg/50 border-b border-brand-border">
               <CardTitle className="text-lg text-brand-primary flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                グランドルール（概要）
+                <FileText className="h-5 w-5 text-brand-accent" />
+                グランドルール（確認用）
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <ul className="space-y-2 text-sm text-brand-text">
-                <li className="flex items-start gap-2">
-                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center">1</Badge>
-                  <span>心理的安全性を高めるため、発表は原則称賛する</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center">2</Badge>
-                  <span>各自の「価値観・考え方」を知るための場とする</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center">3</Badge>
-                  <span>役職・等級に関わらず、フラットな態度で参加する</span>
-                </li>
-              </ul>
-              <Link href="/grand-rule" className="block mt-4 text-xs text-brand-accent hover:underline text-right relative z-20">
-                すべて見る ＞
-              </Link>
+            <CardContent className="p-5">
+              <div className="space-y-4 text-xs sm:text-sm text-brand-text">
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center bg-brand-bg border-brand-border text-brand-primary">1</Badge>
+                  <div>
+                    <h3 className="font-semibold text-brand-primary mb-1">本朝礼の目的</h3>
+                    <p className="text-muted-foreground">お互いを知り、心理的安全性を高めることを第一の目的とします。</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center bg-brand-bg border-brand-border text-brand-primary">2</Badge>
+                  <div>
+                    <h3 className="font-semibold text-brand-primary mb-1">相手を知る態度</h3>
+                    <p className="text-muted-foreground">どのような考え方・価値観であっても否定せず、受け入れる態度で臨みます。</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center bg-brand-bg border-brand-border text-brand-primary">3</Badge>
+                  <div>
+                    <h3 className="font-semibold text-brand-primary mb-1">フラットな関係性</h3>
+                    <p className="text-muted-foreground">役職や等級に関わらず、発信・傾聴ともにフラットな立場で参加します。</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <Badge variant="outline" className="mt-0.5 px-1.5 py-0 min-w-[20px] text-center bg-brand-bg border-brand-border text-brand-primary">4</Badge>
+                  <div>
+                    <h3 className="font-semibold text-brand-primary mb-1">欠席・途中退出の自由</h3>
+                    <p className="text-muted-foreground">顧客都合等により、事前の理由開示なしで欠席や中座を認めます。</p>
+                  </div>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>

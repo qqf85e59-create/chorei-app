@@ -23,9 +23,12 @@ import {
   History,
   ArrowRight,
   MessageSquare,
+  Video,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
+
+const ZOOM_URL = "https://zoom.us/j/1234567890"; // 仮のURL: 実運用に合わせて変更してください
 
 interface SessionData {
   id: number;
@@ -167,6 +170,21 @@ export default function HomePage() {
                   <Badge className="bg-brand-accent/10 text-brand-accent border-brand-accent/20">
                     第{todaySession.phase.phaseNumber}フェーズ
                   </Badge>
+                </div>
+
+                <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-lg border border-blue-100 mb-2">
+                  <div className="flex items-center gap-2 text-sm text-blue-700">
+                    <Video className="h-4 w-4" />
+                    <span className="font-semibold">Zoomリンク</span>
+                  </div>
+                  <a
+                    href={ZOOM_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline px-2 py-1 bg-white rounded shadow-sm border border-blue-200"
+                  >
+                    ミーティングに参加
+                  </a>
                 </div>
 
                 <div className="rounded-lg border border-brand-border bg-brand-bg/50 p-4">

@@ -96,23 +96,23 @@ export function Header() {
             alt="アタックスグループ"
             className="h-8 w-auto"
           />
-          <div className="hidden sm:block">
-            <span className="text-sm font-semibold text-brand-primary">
+          <div className="hidden sm:flex flex-col ml-1 justify-center whitespace-nowrap overflow-hidden pr-2">
+            <span className="text-sm font-bold text-brand-primary leading-tight">
               仙台事務所
             </span>
-            <span className="ml-1 text-sm text-brand-secondary">
+            <span className="text-xs font-semibold text-brand-secondary leading-tight mt-0.5">
               {userRole === 'admin' ? '朝礼運営' : '朝礼'}
             </span>
           </div>
         </div>
 
         {/* Desktop Navigation */}
-        <nav className="hidden lg:flex items-center gap-1">
+        <nav className="hidden xl:flex items-center gap-1 overflow-x-auto no-scrollbar">
           {filteredItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+              className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm transition-all duration-200 whitespace-nowrap ${
                 pathname === item.href
                   ? 'bg-brand-primary text-white shadow-sm'
                   : 'text-brand-text hover:bg-brand-bg hover:text-brand-primary'
@@ -147,7 +147,7 @@ export function Header() {
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <button
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent p-2 text-brand-text hover:bg-brand-bg transition-colors"
+              className="xl:hidden inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent p-2 text-brand-text hover:bg-brand-bg transition-colors"
             >
               <Menu className="h-5 w-5" />
             </button>
