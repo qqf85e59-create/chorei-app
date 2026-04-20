@@ -20,6 +20,8 @@ model User {
   commentatorSessions Session[]        @relation("SessionCommentators")
   attendances       Attendance[]
   absenceRequests   AbsenceRequest[]
+  commentatorViews  CommentatorView[]
+  configHistories   ConfigHistory[]  @relation("ConfigHistoryChangedBy")
 }
 
 model Phase {
@@ -47,24 +49,27 @@ model Topic {
 }
 
 model Session {
-  id          Int      @id @default(autoincrement())
+  id          Int       @id @default(autoincrement())
   date        DateTime
   phaseId     Int
   weekNumber  Int
   topicId     Int
   speakerId   String?
-  startTime   String   @default("09:00")
-  endTime     String   @default("09:10")
-  status      String   @default("scheduled")
+  startTime   String    @default("09:00")
+  endTime     String    @default("09:10")
+  status      String    @default("scheduled")
   adminNote   String?
-  roundNumber Int      @default(1)
+  roundNumber Int       @default(1)
+  commentatorsUpdatedAt DateTime?
+  commentatorsPreset    Boolean   @default(false)
 
-  phase           Phase            @relation(fields: [phaseId], references: [id])
-  topic           Topic            @relation(fields: [topicId], references: [id])
-  speaker         User?            @relation("SessionSpeaker", fields: [speakerId], references: [id])
-  commentators    User[]           @relation("SessionCommentators")
-  attendances     Attendance[]
-  absenceRequests AbsenceRequest[]
+  phase            Phase             @relation(fields: [phaseId], references: [id])
+  topic            Topic             @relation(fields: [topicId], references: [id])
+  speaker          User?             @relation("SessionSpeaker", fields: [speakerId], references: [id])
+  commentators     User[]            @relation("SessionCommentators")
+  attendances      Attendance[]
+  absenceRequests  AbsenceRequest[]
+  commentatorViews CommentatorView[]
 }
 
 model Attendance {
@@ -98,4 +103,37 @@ model Holiday {
   date     DateTime @unique
   name     String
   isActive Boolean  @default(true)
+}
+
+model Config {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+model ConfigHistory {
+  id         Int      @id @default(autoincrement())
+  configKey  String
+  oldValue   String?
+  newValue   String
+  changedBy  String
+  changedAt  DateTime @default(now())
+
+  changedByUser User @relation("ConfigHistoryChangedBy", fields: [changedBy], references: [id])
+
+  @@index([configKey, changedAt])
+}
+
+model CommentatorView {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  sessionId Int
+  seenAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id])
+  session Session @relation(fields: [sessionId], references: [id])
+
+  @@unique([userId, sessionId])
 }

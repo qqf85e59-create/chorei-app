@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   Home,
+  Video,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent } from '@/components/ui/sheet';
@@ -71,33 +72,38 @@ const navItems: NavItem[] = [
     href: '/grand-rule',
     icon: <FileText className="h-4 w-4" />,
   },
+  {
+    label: '会議URL設定',
+    href: '/settings/meeting-url',
+    icon: <Video className="h-4 w-4" />,
+    adminOnly: true,
+  },
 ];
 
 export function Header() {
   const { data: session } = useSession();
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [hasAutoOpened, setHasAutoOpened] = useState(false);
 
   useEffect(() => {
-    // Only auto-open if on smaller screens (where hamburger is visible) and we haven't done it yet
-    if (!hasAutoOpened && window.innerWidth < 1280) {
-      setHasAutoOpened(true);
-      
-      const openTimer = setTimeout(() => {
-        setMobileOpen(true);
-      }, 500);
+    // Auto-open on every page transition (if hamburger is visible on the current viewport)
+    if (typeof window === 'undefined') return;
+    if (window.innerWidth >= 1280) return;
+    if (!pathname || pathname === '/login') return;
 
-      const closeTimer = setTimeout(() => {
-        setMobileOpen(false);
-      }, 2000);
+    const openTimer = setTimeout(() => {
+      setMobileOpen(true);
+    }, 300);
 
-      return () => {
-        clearTimeout(openTimer);
-        clearTimeout(closeTimer);
-      };
-    }
-  }, [hasAutoOpened]);
+    const closeTimer = setTimeout(() => {
+      setMobileOpen(false);
+    }, 2000);
+
+    return () => {
+      clearTimeout(openTimer);
+      clearTimeout(closeTimer);
+    };
+  }, [pathname]);
 
   const userRole = (session?.user as { role?: string })?.role || 'member';
   const filteredItems = navItems.filter(
@@ -109,8 +115,66 @@ export function Header() {
   return (
     <header className="sticky top-0 z-50 border-b border-brand-border bg-white/95 backdrop-blur-sm">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
-        {/* Logo + Title */}
-        <div className="flex items-center gap-3">
+        {/* Left: Hamburger + Logo + Title */}
+        <div className="flex items-center gap-2">
+          {/* Mobile Menu (left side) */}
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <button
+              onClick={() => setMobileOpen(true)}
+              className="xl:hidden inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent p-2 text-brand-text hover:bg-brand-bg transition-colors"
+              aria-label="メニューを開く"
+            >
+              <Menu className="h-5 w-5" />
+            </button>
+            <SheetContent side="left" className="w-72 p-0" showCloseButton={false}>
+              <div className="flex h-full flex-col">
+                <div className="flex items-center justify-between border-b border-brand-border px-4 py-4">
+                  <div>
+                    <p className="text-sm font-semibold text-brand-primary">
+                      {session.user?.name}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {userRole === 'admin' ? '運営' : '参加者'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setMobileOpen(false)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <nav className="flex-1 space-y-1 p-3 overflow-y-auto">
+                  {filteredItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all ${
+                        pathname === item.href
+                          ? 'bg-brand-primary text-white'
+                          : 'text-brand-text hover:bg-brand-bg'
+                      }`}
+                    >
+                      {item.icon}
+                      <span>{item.label}</span>
+                    </Link>
+                  ))}
+                </nav>
+                <div className="border-t border-brand-border p-3">
+                  <button
+                    onClick={() => signOut({ callbackUrl: '/login' })}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-brand-danger hover:bg-red-50 transition-all"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>ログアウト</span>
+                  </button>
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="https://www.attax.co.jp/group/wp-content/uploads/group_logo_head.png"
@@ -145,7 +209,7 @@ export function Header() {
           ))}
         </nav>
 
-        {/* User area */}
+        {/* User area (right) */}
         <div className="flex items-center gap-3">
           <div className="hidden sm:flex flex-col items-end">
             <span className="text-sm font-medium text-brand-text">
@@ -163,63 +227,6 @@ export function Header() {
           >
             <LogOut className="h-4 w-4" />
           </Button>
-
-          {/* Mobile Menu */}
-          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-            <button
-              onClick={() => setMobileOpen(true)}
-              className="xl:hidden inline-flex shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent p-2 text-brand-text hover:bg-brand-bg transition-colors"
-            >
-              <Menu className="h-5 w-5" />
-            </button>
-            <SheetContent side="right" className="w-72 p-0">
-              <div className="flex h-full flex-col">
-                <div className="flex items-center justify-between border-b border-brand-border px-4 py-4">
-                  <div>
-                    <p className="text-sm font-semibold text-brand-primary">
-                      {session.user?.name}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {userRole === 'admin' ? '運営' : '参加者'}
-                    </p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-                <nav className="flex-1 space-y-1 p-3">
-                  {filteredItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all ${
-                        pathname === item.href
-                          ? 'bg-brand-primary text-white'
-                          : 'text-brand-text hover:bg-brand-bg'
-                      }`}
-                    >
-                      {item.icon}
-                      <span>{item.label}</span>
-                    </Link>
-                  ))}
-                </nav>
-                <div className="border-t border-brand-border p-3">
-                  <button
-                    onClick={() => signOut({ callbackUrl: '/login' })}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-brand-danger hover:bg-red-50 transition-all"
-                  >
-                    <LogOut className="h-4 w-4" />
-                    <span>ログアウト</span>
-                  </button>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
         </div>
       </div>
     </header>

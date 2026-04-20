@@ -33,8 +33,7 @@ import {
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
-
-const ZOOM_URL = "https://zoom.us/j/1234567890"; // 仮のURL: 実運用に合わせて変更してください
+import { NextCommentatorsCard } from '@/components/next-commentators-card';
 
 interface SessionData {
   id: number;
@@ -70,6 +69,7 @@ export default function DashboardPage() {
   const [todaySession, setTodaySession] = useState<SessionData | null>(null);
   const [attendance, setAttendance] = useState<AttendanceData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
+  const [meetingUrl, setMeetingUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
@@ -90,6 +90,13 @@ export default function DashboardPage() {
   async function fetchData() {
     try {
       const today = new Date().toISOString().split('T')[0];
+
+      // Fetch meeting URL
+      const urlRes = await fetch('/api/config/meeting-url');
+      if (urlRes.ok) {
+        const urlData = await urlRes.json();
+        setMeetingUrl(urlData.url);
+      }
 
       // Fetch today's session
       const sessionsRes = await fetch(`/api/sessions?date=${today}`);
@@ -214,6 +221,30 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  {meetingUrl && (
+                    <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                      <div className="flex items-center gap-2 text-sm text-blue-700">
+                        <Video className="h-4 w-4" />
+                        <span className="font-semibold">Web会議リンク</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <a
+                          href={meetingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline px-2 py-1 bg-white rounded shadow-sm border border-blue-200"
+                        >
+                          ミーティングに参加
+                        </a>
+                        <Link href="/settings/meeting-url">
+                          <Button variant="outline" size="sm" className="h-8 text-xs border-brand-border">
+                            編集
+                          </Button>
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+
                   <Separator className="bg-brand-border" />
 
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -314,6 +345,9 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+
+          {/* Next session's tentative commentators (Phase 2/3) */}
+          <NextCommentatorsCard />
 
           {/* Attendance Card */}
           {todaySession && (
