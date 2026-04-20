@@ -67,7 +67,8 @@ export async function POST(request: Request) {
         commentators: {
           // すでに設定されているものを上書き（リセット）して紐付け
           set: selected.map(u => ({ id: u.id }))
-        }
+        },
+        commentatorsUpdatedAt: new Date(),
       },
       include: {
         commentators: { select: { id: true, name: true, grade: true } }
