@@ -9,7 +9,7 @@ type TxClient = Prisma.TransactionClient | PrismaClient;
 // Phase 1: total attendance (speaker + listeners) must be >= 3
 // Phase 2/3: commentators count must be >= 4
 export const PHASE1_MIN_TOTAL = 3;
-export const PHASE2_3_MIN_COMMENTATORS = 4;
+export const PHASE2_3_MIN_COMMENTATORS = 1; // Phase 2 は応答者1名（欠席時は自動再選）
 
 export type AdjustmentReport = {
   speakerCascaded: boolean;

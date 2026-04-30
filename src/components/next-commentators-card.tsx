@@ -103,10 +103,7 @@ export function NextCommentatorsCard() {
           <div>
             <CardTitle className="text-base text-brand-primary flex items-center gap-2">
               <Users className="h-5 w-5" />
-              次回の応答者（暫定）
-              <Badge variant="outline" className="border-[#0070CC]/40 text-[#0070CC] bg-white">
-                暫定
-              </Badge>
+              次回の応答者
               {data.changed && (
                 <Badge className="bg-[#0070CC] hover:bg-[#0070CC]/90 text-white">
                   変更あり
@@ -127,13 +124,13 @@ export function NextCommentatorsCard() {
         <div className="flex items-start gap-2 rounded-lg bg-[#EBF5FF]/80 border border-[#0070CC]/20 p-2.5 text-xs text-brand-primary">
           <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
           <span>
-            変動の可能性あり（欠席申請等により再抽選される場合があります）
+            欠席申請があった場合は自動的に代わりの応答者が割り当てられます
           </span>
         </div>
 
         <div>
           <div className="text-xs text-muted-foreground mb-1.5">
-            応答者（{s.commentators.length}名）
+            応答者
           </div>
           <div className="flex flex-wrap gap-1.5">
             {s.commentators.length === 0 ? (

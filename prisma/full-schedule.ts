@@ -50,19 +50,18 @@ async function main() {
   const allUsers = await prisma.user.findMany();
   if (allUsers.length === 0) throw new Error('ユーザーが存在しません。先に seed を実行してください。');
 
-  // 発話者: 門田を除いた仙台在籍者、等級昇順
+  // 発話者: 全メンバー等級昇順（門田含む）
   const speakers = [...allUsers]
-    .filter(u => u.email !== 'kadota@attax.co.jp')
-    .sort((a, b) => GRADE_ORDER.indexOf(a.grade) - GRADE_ORDER.indexOf(b.grade));
-
-  // レビューセッション担当: 最上位等級のメンバー（ソート済み speakers の末尾）
-  const adminUser = speakers[speakers.length - 1];
+    .sort((a, b) => {
+      const ai = GRADE_ORDER.indexOf(a.grade);
+      const bi = GRADE_ORDER.indexOf(b.grade);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
 
   console.log(`👥 発話者 ${speakers.length} 名: ${speakers.map(u => u.name).join(' / ')}`);
-  console.log(`🔑 管理者（レビュー担当）: ${adminUser.name}\n`);
 
   /* ── 2. 既存セッション関連データを削除 ──────────── */
-  console.log('🗑  既存データをクリア中...');
+  console.log('\n🗑  既存データをクリア中...');
   await prisma.notification.deleteMany();
   await prisma.commentatorView.deleteMany();
   await prisma.absenceRequest.deleteMany();
@@ -126,32 +125,18 @@ async function main() {
   const createdSessionIds: number[] = [];
 
   // ── Phase 1: 2026-05-07 〜 2026-06-30 ──
+  // 全メンバー8名 × 3ラウンド = 24セッション（レビュー枠なし）
   const P1_START_STR = '2026-05-07';
   const p1Start = new Date(P1_START_STR);
   const p1Dates = getSessionDates(P1_START_STR, '2026-06-30', holidaySet);
-
-  // 8セッションで1ラウンド（発話者7名 + レビュー1回）
-  const ROUND_SIZE = speakers.length + 1; // = 8
-  let speakerIdx = 0;
+  const ROUND_SIZE = speakers.length; // = 8
 
   for (let i = 0; i < p1Dates.length; i++) {
-    const date    = p1Dates[i];
-    const wn      = weekNum(date, p1Start);
-    const posInRound = (i % ROUND_SIZE) + 1;  // 1..8
-    const isReview   = posInRound === ROUND_SIZE;
-    const roundNo    = Math.floor(i / ROUND_SIZE) + 1;
-
-    let speakerId: string;
-    let topicId: number;
-
-    if (isReview) {
-      speakerId = adminUser.id;
-      topicId   = p1Topics[0].id;
-    } else {
-      speakerId = speakers[speakerIdx % speakers.length].id;
-      topicId   = p1Topics[Math.min(wn - 1, p1Topics.length - 1)].id;
-      speakerIdx++;
-    }
+    const date   = p1Dates[i];
+    const wn     = weekNum(date, p1Start);
+    const roundNo = Math.floor(i / ROUND_SIZE) + 1;
+    const speaker = speakers[i % ROUND_SIZE];
+    const topicId = p1Topics[Math.min(wn - 1, p1Topics.length - 1)].id;
 
     const s = await prisma.session.create({
       data: {
@@ -159,13 +144,12 @@ async function main() {
         phaseId:    phase1.id,
         weekNumber: wn,
         topicId,
-        speakerId,
+        speakerId:  speaker.id,
         startTime:  '09:00',
         endTime:    '09:10',
         status:     'scheduled',
         roundNumber: roundNo,
         commentatorsPreset: false,
-        adminNote: isReview ? `運営内棚卸し（第${roundNo}巡目振り返り）` : null,
       },
     });
     createdSessionIds.push(s.id);
@@ -173,19 +157,20 @@ async function main() {
   console.log(`✅ Phase 1 セッション ${p1Dates.length} 件作成（${p1Dates.length / ROUND_SIZE} ラウンド）`);
 
   // ── Phase 2: 2026-07-01 〜 2026-09-30 ──
+  // 応答者（コメンテーター）= 発話者の次の人（等級順で1つ上）を事前設定
   const P2_START_STR = '2026-07-01';
   const p2Start = new Date(P2_START_STR);
   const p2Dates = getSessionDates(P2_START_STR, '2026-09-30', holidaySet);
 
-  speakerIdx = 0;
   for (let i = 0; i < p2Dates.length; i++) {
-    const date    = p2Dates[i];
-    const wn      = weekNum(date, p2Start);
-    const roundNo = Math.floor(i / speakers.length) + 1;
-
-    const speakerId = speakers[speakerIdx % speakers.length].id;
-    const topicId   = p2Topics[speakerIdx % p2Topics.length].id;
-    speakerIdx++;
+    const date       = p2Dates[i];
+    const wn         = weekNum(date, p2Start);
+    const roundNo    = Math.floor(i / speakers.length) + 1;
+    const speakerIdx  = i % speakers.length;
+    const respondentIdx = (i + 1) % speakers.length; // 次の人が応答者
+    const speaker    = speakers[speakerIdx];
+    const respondent = speakers[respondentIdx];
+    const topicId    = p2Topics[Math.min(wn - 1, p2Topics.length - 1)].id;
 
     const s = await prisma.session.create({
       data: {
@@ -193,17 +178,20 @@ async function main() {
         phaseId:    phase2.id,
         weekNumber: wn,
         topicId,
-        speakerId,
+        speakerId:  speaker.id,
         startTime:  '09:00',
         endTime:    '09:15',
         status:     'scheduled',
         roundNumber: roundNo,
-        commentatorsPreset: false,
+        // 応答者を事前設定（欠席時は absence-logic が再抽選）
+        commentators:        { connect: { id: respondent.id } },
+        commentatorsPreset:  true,
+        commentatorsUpdatedAt: new Date(),
       },
     });
     createdSessionIds.push(s.id);
   }
-  console.log(`✅ Phase 2 セッション ${p2Dates.length} 件作成`);
+  console.log(`✅ Phase 2 セッション ${p2Dates.length} 件作成（応答者事前設定済み）`);
 
   /* ── 7. 出席レコード一括作成（全員 present） ─────── */
   console.log('\n📋 出席レコードを作成中...');
@@ -221,6 +209,13 @@ async function main() {
   console.log(`   Phase 1: ${p1Dates.length} セッション（2026-05-07 〜 2026-06-30）`);
   console.log(`   Phase 2: ${p2Dates.length} セッション（2026-07-01 〜 2026-09-30）`);
   console.log(`   合計   : ${createdSessionIds.length} セッション`);
+  console.log('\n📋 Phase 1 発話順（1ラウンド）:');
+  speakers.forEach((s, i) => console.log(`   ${i + 1}. ${s.name}（${s.grade}）`));
+  console.log('\n📋 Phase 2 最初の8セッション（発話者 → 応答者）:');
+  speakers.forEach((s, i) => {
+    const respondent = speakers[(i + 1) % speakers.length];
+    console.log(`   ${s.name} → 応答: ${respondent.name}`);
+  });
 }
 
 main()

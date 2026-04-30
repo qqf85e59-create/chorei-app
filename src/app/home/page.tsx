@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   CalendarDays, BookOpen, Mic, Clock, FileText,
   UserMinus, History, MessageSquare,
-  Video, AlertTriangle, ChevronRight, Bell,
+  Video, AlertTriangle, ChevronRight, Bell, Users,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
@@ -28,6 +28,14 @@ interface SessionData {
   topic: { id: number; topicText: string; weekNumber: number };
   phase: { id: number; name: string; phaseNumber: number };
   commentators?: { id: string; name: string; grade: string }[];
+}
+
+interface CommentOrderItem {
+  id: string;
+  name: string;
+  grade: string;
+  status: 'present' | 'absent' | 'unspoken' | 'leave_early';
+  commentPosition: number | null;
 }
 
 interface NotificationItem {
@@ -51,6 +59,12 @@ function formatTimeAgo(dateStr: string) {
   return `${diffDay}日前`;
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  absent:      '欠席',
+  unspoken:    '聴講のみ',
+  leave_early: '途中退出',
+};
+
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -59,16 +73,35 @@ export default function HomePage() {
   const [pastSpeaking, setPastSpeaking] = useState<SessionData[]>([]);
   const [meetingUrl, setMeetingUrl] = useState<string>('');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [commentOrder, setCommentOrder] = useState<CommentOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // ── コメント順を取得（Phase 1 専用） ──────────────
+  const fetchCommentOrder = useCallback(async (sessionId: number) => {
+    try {
+      const res = await fetch(`/api/sessions/comment-order?sessionId=${sessionId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCommentOrder(data.commentOrder || []);
+      }
+    } catch (e) { console.error(e); }
+  }, []);
+
   useEffect(() => {
-    // loading 中は何もしない（セッション確立前に判断するとループする）
     if (status === 'loading') return;
     if (status === 'unauthenticated') { router.push('/login'); return; }
     const hasConfirmed = localStorage.getItem('grandRuleConfirmed');
     if (!hasConfirmed) { router.push('/grand-rule'); return; }
     if (session?.user) fetchData();
   }, [status, session, router]);
+
+  // Phase 1 のセッションが確定したらコメント順を取得 + 30s ポーリング
+  useEffect(() => {
+    if (!todaySession || todaySession.phase.phaseNumber !== 1) return;
+    fetchCommentOrder(todaySession.id);
+    const timer = setInterval(() => fetchCommentOrder(todaySession.id), 30_000);
+    return () => clearInterval(timer);
+  }, [todaySession, fetchCommentOrder]);
 
   async function fetchData() {
     try {
@@ -109,6 +142,9 @@ export default function HomePage() {
       </div>
     </div>
   );
+
+  const isPhase1 = todaySession?.phase.phaseNumber === 1;
+  const isPhase2Plus = todaySession && todaySession.phase.phaseNumber >= 2;
 
   return (
     <div className="min-h-[calc(100vh-60px)] bg-[#F5F7FA]">
@@ -190,15 +226,74 @@ export default function HomePage() {
                     </div>
                   </div>
 
-                  {todaySession.commentators && todaySession.commentators.length > 0 && (
+                  {/* ── Phase 1: コメント順 ── */}
+                  {isPhase1 && commentOrder.length > 0 && (
+                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-3 flex items-center gap-1.5">
+                        <MessageSquare className="h-3 w-3" />コメント順（発話者以外全員）
+                      </p>
+                      <div className="flex flex-col gap-2">
+                        {commentOrder.map(c => {
+                          const isInactive = c.status === 'absent' || c.status === 'unspoken';
+                          const isMe = c.id === session?.user?.id;
+                          return (
+                            <div
+                              key={c.id}
+                              className={`flex items-center gap-2.5 transition-opacity ${isInactive ? 'opacity-40' : ''}`}
+                            >
+                              {/* 順番バッジ */}
+                              {c.commentPosition !== null ? (
+                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
+                                  isMe
+                                    ? 'bg-[#0070CC] text-white'
+                                    : 'bg-[#00135D] text-white'
+                                }`}>
+                                  {c.commentPosition}
+                                </span>
+                              ) : (
+                                <span className="w-6 h-6 rounded-full bg-[#E0E4EF] flex items-center justify-center shrink-0">
+                                  <span className="text-[10px] text-muted-foreground font-bold">–</span>
+                                </span>
+                              )}
+                              {/* 名前 */}
+                              <span className={`text-sm font-semibold ${isMe ? 'text-[#0070CC]' : 'text-[#1A1D23]'}`}>
+                                {c.name}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                {GRADE_LABELS[c.grade] || c.grade}
+                              </span>
+                              {isMe && (
+                                <Badge className="bg-[#0070CC] text-white text-[10px] py-0 px-1.5">あなた</Badge>
+                              )}
+                              {c.status !== 'present' && (
+                                <Badge className={`text-[10px] py-0 px-1.5 ${
+                                  c.status === 'absent'
+                                    ? 'bg-[#FEF2F2] text-[#C0392B] border border-[#FCCACA]'
+                                    : 'bg-[#F8F9FC] text-muted-foreground border border-[#E0E4EF]'
+                                }`}>
+                                  {STATUS_LABEL[c.status] ?? c.status}
+                                </Badge>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
+                        ※ 欠席・聴講のみの方は自動的にスキップされます。30秒ごとに自動更新。
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ── Phase 2+: 本日の応答者 ── */}
+                  {isPhase2Plus && todaySession.commentators && todaySession.commentators.length > 0 && (
                     <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-2.5 flex items-center gap-1.5">
-                        <MessageSquare className="h-3 w-3" />本日のコメンテーター
+                        <Users className="h-3 w-3" />本日の応答者
                       </p>
                       <div className="flex flex-wrap gap-4">
                         {todaySession.commentators.map((c, i) => (
                           <div key={c.id} className="flex items-center gap-2">
-                            <span className="w-5 h-5 rounded-full bg-[#00135D] flex items-center justify-center text-[10px] font-bold text-white shrink-0">{i+1}</span>
+                            <span className="w-6 h-6 rounded-full bg-[#00135D] flex items-center justify-center text-[11px] font-bold text-white shrink-0">{i+1}</span>
                             <div>
                               <p className="text-sm font-semibold text-[#1A1D23] leading-tight">{c.name}</p>
                               <p className="text-[10px] text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</p>
@@ -259,7 +354,7 @@ export default function HomePage() {
             </Card>
           )}
 
-          {/* Next commentators (Phase 2/3) */}
+          {/* Next commentators / respondent (Phase 2/3) */}
           <NextCommentatorsCard />
 
           {/* Next speaking */}
