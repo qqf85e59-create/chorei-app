@@ -56,6 +56,24 @@ interface PhaseInfo {
   _count: { sessions: number };
 }
 
+/** フェーズごとの進行フロー（静的定義） */
+const PHASE_FLOW: Record<number, { label: string; time: string; detail: string }[]> = {
+  1: [
+    { label: '冒頭',     time: '30秒',    detail: '運営が発話者・主題を告知' },
+    { label: '発話',     time: '5分',     detail: '発話者が主題について話す' },
+    { label: '関心表明', time: '2分',     detail: '聴取者7名が15〜20秒ずつ「関心を持った一点」を述べる' },
+    { label: '締め',     time: '1分30秒', detail: '運営が締めの挨拶、次回の告知' },
+  ],
+  2: [
+    { label: '冒頭',               time: '30秒',     detail: '運営が発話者A・応答者B・主題を告知' },
+    { label: '発話A',              time: '6分',      detail: '発話者Aが主題について話す' },
+    { label: '問いを置くB',        time: '2分',      detail: '応答者Bが自分の中に生まれた問いを場に置く' },
+    { label: 'Aの応答（任意）',    time: '2〜3分',   detail: 'Aが応えたい場合のみ応える' },
+    { label: '聴取者6名の感想（任意）', time: '3〜4分', detail: 'チャットまたは口頭で、任意で感想を残す' },
+    { label: '締め',               time: '30秒〜1分', detail: '運営が締めの挨拶、次回の告知' },
+  ],
+};
+
 function formatTimeAgo(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -494,27 +512,65 @@ export default function HomePage() {
                   const isActive =
                     ph.startDate.split('T')[0] <= todayStr &&
                     ph.endDate.split('T')[0] >= todayStr;
+                  const flow = PHASE_FLOW[ph.phaseNumber] ?? [];
                   return (
-                    <div key={ph.id} className={`p-4 flex gap-4 items-start ${isActive ? 'bg-[#E8F2FB]/30' : ''}`}>
-                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${
-                        isActive ? 'bg-[#0070CC] text-white' : 'bg-[#F0F2F8] text-[#3D4252]'
-                      }`}>
-                        {ph.phaseNumber}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-bold text-[#00135D]">第{ph.phaseNumber}フェーズ · {ph.name}</span>
-                          {isActive && <Badge className="bg-[#0070CC] text-white text-[10px] px-2 py-0">進行中</Badge>}
+                    <div key={ph.id} className={`p-4 space-y-3 ${isActive ? 'bg-[#E8F2FB]/30' : ''}`}>
+                      {/* フェーズヘッダ */}
+                      <div className="flex gap-4 items-start">
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${
+                          isActive ? 'bg-[#0070CC] text-white' : 'bg-[#F0F2F8] text-[#3D4252]'
+                        }`}>
+                          {ph.phaseNumber}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-0.5">
-                          {startStr}〜{endStr}　全{ph._count.sessions}回
-                        </p>
-                        {ph.description && (
-                          <p className="text-xs text-[#3D4252] mt-1 leading-relaxed line-clamp-2">
-                            {ph.description}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-[#00135D]">第{ph.phaseNumber}フェーズ · {ph.name}</span>
+                            {isActive && <Badge className="bg-[#0070CC] text-white text-[10px] px-2 py-0">進行中</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">
+                            {startStr}〜{endStr}　全{ph._count.sessions}回
                           </p>
-                        )}
+                          {ph.description && (
+                            <p className="text-xs text-[#3D4252] mt-1 leading-relaxed">
+                              {ph.description}
+                            </p>
+                          )}
+                        </div>
                       </div>
+
+                      {/* 進行フロー */}
+                      {flow.length > 0 && (
+                        <div className="ml-[52px]">
+                          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-2">
+                            進行フロー
+                          </p>
+                          <div className="relative border border-[#E0E4EF] rounded-lg overflow-hidden">
+                            {/* ヘッダ行 */}
+                            <div className="grid grid-cols-[5rem_3.5rem_1fr] bg-[#F0F2F8] border-b border-[#E0E4EF]">
+                              <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">区分</span>
+                              <span className="px-2 py-1.5 text-[10px] font-bold text-[#3D4252]">時間</span>
+                              <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">内容</span>
+                            </div>
+                            {/* データ行 */}
+                            {flow.map((step, i) => (
+                              <div
+                                key={i}
+                                className={`grid grid-cols-[5rem_3.5rem_1fr] ${i < flow.length - 1 ? 'border-b border-[#E0E4EF]' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-[#F8F9FC]'}`}
+                              >
+                                <span className="px-2.5 py-2 text-[11px] font-semibold text-[#00135D] leading-snug flex items-center">
+                                  {step.label}
+                                </span>
+                                <span className="px-2 py-2 text-[11px] text-[#0070CC] font-medium leading-snug flex items-center whitespace-nowrap">
+                                  {step.time}
+                                </span>
+                                <span className="px-2.5 py-2 text-[11px] text-[#3D4252] leading-snug flex items-center">
+                                  {step.detail}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
