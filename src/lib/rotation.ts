@@ -86,56 +86,6 @@ export async function generateRotation(
   return sessions;
 }
 
-/**
- * Handle absence rescheduling for Round 1
- */
-export async function rescheduleForAbsence(
-  sessionId: number,
-  absentUserId: string
-) {
-  const session = await prisma.session.findUnique({
-    where: { id: sessionId },
-    include: { speaker: true },
-  });
-
-  if (!session) return null;
-
-  // For Round 1: Push absent speaker to end of round
-  if (session.roundNumber === 1) {
-    // Check if speaker is E2a or E2b at the beginning (exception case)
-    if (
-      session.speaker &&
-      ['E2a', 'E2b'].includes(session.speaker.grade) &&
-      session.weekNumber <= 1
-    ) {
-      // Return null - admin should handle manually
-      return null;
-    }
-
-    // Find remaining sessions in this round after this one
-    const remainingSessions = await prisma.session.findMany({
-      where: {
-        phaseId: session.phaseId,
-        roundNumber: session.roundNumber,
-        date: { gt: session.date },
-        status: 'scheduled',
-      },
-      orderBy: { date: 'asc' },
-    });
-
-    // Shift speakers forward and add absent speaker at end
-    if (remainingSessions.length > 0) {
-      const speakers = remainingSessions.map((s) => s.speakerId).filter(Boolean);
-      speakers.push(absentUserId);
-
-      // Update current session's speaker to next in line
-      // This shifts everyone forward
-      return { action: 'shift', speakers, sessions: remainingSessions };
-    }
-  }
-
-  return { action: 'manual' };
-}
 
 export function getSessionDates(
   startDate: Date,

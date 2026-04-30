@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 // POST /api/topics - Create a new topic (admin only)
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 // PUT /api/topics - Update a topic (admin only)
 export async function PUT(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

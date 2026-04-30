@@ -2,75 +2,27 @@
 
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
-  RotateCcw,
-  Edit,
-  Wand2,
-  Filter,
-  Mic,
-  BookOpen,
-} from 'lucide-react';
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { RotateCcw, Pencil, Wand2, Filter } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 
 interface SessionData {
-  id: number;
-  date: string;
-  startTime: string;
-  endTime: string;
-  status: string;
-  adminNote: string | null;
-  roundNumber: number;
-  weekNumber: number;
+  id: number; date: string; startTime: string; endTime: string;
+  status: string; adminNote: string | null; roundNumber: number; weekNumber: number;
   speaker: { id: string; name: string; grade: string };
   topic: { id: number; topicText: string; weekNumber: number };
   phase: { id: number; name: string; phaseNumber: number };
 }
-
-interface UserData {
-  id: string;
-  name: string;
-  grade: string;
-}
-
-interface TopicData {
-  id: number;
-  topicText: string;
-  weekNumber: number;
-}
+interface UserData { id: string; name: string; grade: string; }
+interface TopicData { id: number; topicText: string; weekNumber: number; }
 
 export default function RotationPage() {
   const { data: session } = useSession();
@@ -78,132 +30,96 @@ export default function RotationPage() {
   const [users, setUsers] = useState<UserData[]>([]);
   const [topics, setTopics] = useState<TopicData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterSpeaker, setFilterSpeaker] = useState<string>('all');
-  const [filterRound, setFilterRound] = useState<string>('all');
+  const [filterSpeaker, setFilterSpeaker] = useState('all');
+  const [filterRound, setFilterRound] = useState('all');
   const [editSession, setEditSession] = useState<SessionData | null>(null);
-  const [editForm, setEditForm] = useState({
-    speakerId: '',
-    topicId: '',
-    startTime: '',
-    endTime: '',
-    status: '',
-    adminNote: '',
-  });
+  const [editForm, setEditForm] = useState({ speakerId:'', topicId:'', startTime:'', endTime:'', status:'', adminNote:'' });
+  const [generating, setGenerating] = useState(false);
 
-  const userRole = (session?.user as { role?: string })?.role || 'member';
+  const isAdmin = (session?.user as { role?: string })?.role === 'admin';
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+  useEffect(() => { fetchData(); }, []);
 
   async function fetchData() {
     try {
-      const [sessionsRes, usersRes, topicsRes] = await Promise.all([
-        fetch('/api/sessions'),
-        fetch('/api/users'),
-        fetch('/api/topics'),
-      ]);
-      setSessions(await sessionsRes.json());
-      setUsers(await usersRes.json());
-      setTopics(await topicsRes.json());
-    } catch (error) {
-      console.error('Failed to fetch:', error);
-    } finally {
-      setLoading(false);
-    }
+      const [sr, ur, tr] = await Promise.all([fetch('/api/sessions'), fetch('/api/users'), fetch('/api/topics')]);
+      setSessions(await sr.json()); setUsers(await ur.json()); setTopics(await tr.json());
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
   }
 
   function openEdit(s: SessionData) {
     setEditSession(s);
-    setEditForm({
-      speakerId: s.speaker.id,
-      topicId: String(s.topic.id),
-      startTime: s.startTime,
-      endTime: s.endTime,
-      status: s.status,
-      adminNote: s.adminNote || '',
-    });
+    setEditForm({ speakerId:s.speaker.id, topicId:String(s.topic.id), startTime:s.startTime, endTime:s.endTime, status:s.status, adminNote:s.adminNote||'' });
   }
-
   async function saveEdit() {
     if (!editSession) return;
-
-    try {
-      await fetch('/api/sessions', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: editSession.id,
-          speakerId: editForm.speakerId,
-          topicId: parseInt(editForm.topicId),
-          startTime: editForm.startTime,
-          endTime: editForm.endTime,
-          status: editForm.status,
-          adminNote: editForm.adminNote || null,
-        }),
-      });
-      setEditSession(null);
-      fetchData();
-    } catch (error) {
-      console.error('Failed to save:', error);
-    }
+    await fetch('/api/sessions', {
+      method:'PUT', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({ id:editSession.id, speakerId:editForm.speakerId, topicId:parseInt(editForm.topicId), startTime:editForm.startTime, endTime:editForm.endTime, status:editForm.status, adminNote:editForm.adminNote||null }),
+    });
+    setEditSession(null); fetchData();
+  }
+  async function handleGenerate() {
+    setGenerating(true);
+    try { await fetch('/api/rotation/generate', { method:'POST' }); fetchData(); }
+    catch (e) { console.error(e); }
+    finally { setGenerating(false); }
   }
 
-  const filteredSessions = sessions.filter((s) => {
+  const filtered = sessions.filter(s => {
     if (filterSpeaker !== 'all' && s.speaker.id !== filterSpeaker) return false;
-    if (filterRound !== 'all' && s.roundNumber !== parseInt(filterRound))
-      return false;
+    if (filterRound !== 'all' && s.roundNumber !== parseInt(filterRound)) return false;
     return true;
   });
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return `${date.getMonth() + 1}/${date.getDate()}（${DAY_LABELS[date.getDay()]}）`;
-  };
+  const fmtDate = (ds: string) => { const d = new Date(ds); return `${d.getMonth()+1}/${d.getDate()}（${DAY_LABELS[d.getDay()]}）`; };
 
-  if (loading) {
-    return (
-      <div className="flex h-[60vh] items-center justify-center">
-        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-brand-border border-t-brand-primary" />
-      </div>
-    );
-  }
+  const statusStyle: Record<string, string> = {
+    scheduled: 'bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5]',
+    completed:  'bg-[#ECFDF5] text-[#047857] border-[#A7F3D0]',
+    cancelled:  'bg-[#FEE8E8] text-[#C0392B] border-[#FCCACA]',
+  };
+  const statusLabel: Record<string, string> = { scheduled:'予定', completed:'完了', cancelled:'中止' };
+
+  if (loading) return (
+    <div className="flex h-[60vh] items-center justify-center">
+      <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-[#E0E4EF] border-t-[#00135D]" />
+    </div>
+  );
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 animate-fade-in">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-brand-primary flex items-center gap-2">
-            <RotateCcw className="h-6 w-6" />
-            輪番計画
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            発話者・主題のスケジュールを管理します
-          </p>
-        </div>
-      </div>
+    <div className="min-h-[calc(100vh-60px)] bg-[#F5F7FA]">
+      <div className="mx-auto max-w-[1200px] px-4 py-7 sm:px-6 animate-fade-in">
 
-      {/* Filters */}
-      <Card className="border-brand-border shadow-sm mb-6">
-        <CardContent className="flex flex-wrap items-center gap-4 p-4">
+        <div className="flex items-end justify-between mb-6 pb-5 border-b border-[#E0E4EF]">
+          <div>
+            <h1 className="text-[22px] font-bold text-[#00135D] tracking-tight flex items-center gap-2">
+              <RotateCcw className="h-5 w-5" />輪番計画
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">発話者・主題のスケジュールを管理します</p>
+          </div>
+          {isAdmin && (
+            <Button onClick={handleGenerate} disabled={generating}
+              className="bg-[#00135D] hover:bg-[#1E3A8A] text-white shadow-[0_3px_10px_rgba(0,19,93,0.25)] rounded-lg gap-1.5">
+              <Wand2 className={`h-4 w-4 ${generating ? 'animate-spin' : ''}`} />
+              {generating ? '生成中...' : '自動生成'}
+            </Button>
+          )}
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white border border-[#E0E4EF] rounded-xl p-4 mb-5 flex flex-wrap items-center gap-3 shadow-[0_2px_8px_rgba(0,19,93,0.05)]">
           <Filter className="h-4 w-4 text-muted-foreground" />
-          <Select value={filterSpeaker} onValueChange={(v) => setFilterSpeaker(v || '')}>
-            <SelectTrigger className="w-40 border-brand-border">
-              <SelectValue placeholder="発話者絞込" />
-            </SelectTrigger>
+          <Select value={filterSpeaker} onValueChange={v => setFilterSpeaker(v || 'all')}>
+            <SelectTrigger className="w-40 border-[#E0E4EF] h-8 text-sm"><SelectValue placeholder="発話者絞込" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全員</SelectItem>
-              {users.map((u) => (
-                <SelectItem key={u.id} value={u.id}>
-                  {u.name}
-                </SelectItem>
-              ))}
+              {users.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={filterRound} onValueChange={(v) => setFilterRound(v || '')}>
-            <SelectTrigger className="w-32 border-brand-border">
-              <SelectValue placeholder="巡目" />
-            </SelectTrigger>
+          <Select value={filterRound} onValueChange={v => setFilterRound(v || 'all')}>
+            <SelectTrigger className="w-28 border-[#E0E4EF] h-8 text-sm"><SelectValue placeholder="巡目" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">全巡</SelectItem>
               <SelectItem value="1">1巡目</SelectItem>
@@ -212,246 +128,107 @@ export default function RotationPage() {
             </SelectContent>
           </Select>
           <div className="flex-1" />
-          <Badge
-            variant="outline"
-            className="border-brand-border text-muted-foreground"
-          >
-            {filteredSessions.length}件
-          </Badge>
-        </CardContent>
-      </Card>
+          <Badge variant="outline" className="border-[#E0E4EF] text-muted-foreground text-xs">{filtered.length}件</Badge>
+        </div>
 
-      {/* Sessions Table */}
-      <Card className="border-brand-border shadow-md overflow-hidden">
-        <CardContent className="p-0">
+        {/* Table */}
+        <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow className="bg-brand-bg hover:bg-brand-bg">
-                  <TableHead className="text-brand-primary font-semibold">
-                    日付
-                  </TableHead>
-                  <TableHead className="text-brand-primary font-semibold">
-                    巡目
-                  </TableHead>
-                  <TableHead className="text-brand-primary font-semibold">
-                    <Mic className="inline h-3.5 w-3.5 mr-1" />
-                    発話者
-                  </TableHead>
-                  <TableHead className="text-brand-primary font-semibold">
-                    等級
-                  </TableHead>
-                  <TableHead className="text-brand-primary font-semibold">
-                    <BookOpen className="inline h-3.5 w-3.5 mr-1" />
-                    主題
-                  </TableHead>
-                  <TableHead className="text-brand-primary font-semibold">
-                    状態
-                  </TableHead>
-                  {userRole === 'admin' && (
-                    <TableHead className="text-brand-primary font-semibold w-20">
-                      操作
-                    </TableHead>
-                  )}
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredSessions.map((s) => (
-                  <TableRow
-                    key={s.id}
-                    className="hover:bg-brand-bg/50 transition-colors"
-                  >
-                    <TableCell className="font-medium text-brand-text">
-                      {formatDate(s.date)}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        variant="outline"
-                        className="border-brand-accent/30 text-brand-accent"
-                      >
-                        {s.roundNumber}巡目
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {s.speaker.name}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {GRADE_LABELS[s.speaker.grade] || s.speaker.grade}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {s.topic.topicText}
-                    </TableCell>
-                    <TableCell>
-                      <Badge
-                        className={
-                          s.status === 'completed'
-                            ? 'bg-brand-success/10 text-brand-success border-brand-success/20'
-                            : s.status === 'cancelled'
-                            ? 'bg-brand-danger/10 text-brand-danger border-brand-danger/20'
-                            : 'bg-brand-accent/10 text-brand-accent border-brand-accent/20'
-                        }
-                      >
-                        {s.status === 'scheduled'
-                          ? '予定'
-                          : s.status === 'completed'
-                          ? '完了'
-                          : 'キャンセル'}
-                      </Badge>
-                    </TableCell>
-                    {userRole === 'admin' && (
-                      <TableCell>
-                        <Dialog>
-                          <DialogTrigger
-                            render={
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => openEdit(s)}
-                                className="hover:bg-brand-bg"
-                              />
-                            }
-                          >
-                            <Edit className="h-3.5 w-3.5" />
-                          </DialogTrigger>
-                          <DialogContent className="sm:max-w-md">
-                            <DialogHeader>
-                              <DialogTitle className="text-brand-primary">
-                                セッション編集
-                              </DialogTitle>
-                              <DialogDescription>
-                                {formatDate(s.date)} のセッションを編集します
-                              </DialogDescription>
-                            </DialogHeader>
-                            {editSession?.id === s.id && (
-                              <div className="space-y-4">
-                                <div>
-                                  <Label>発話者</Label>
-                                  <Select
-                                    value={editForm.speakerId}
-                                    onValueChange={(v) =>
-                                      setEditForm({ ...editForm, speakerId: v || '' })
-                                    }
-                                  >
-                                    <SelectTrigger className="border-brand-border">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {users.map((u) => (
-                                        <SelectItem key={u.id} value={u.id}>
-                                          {u.name} ({u.grade})
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <Label>主題</Label>
-                                  <Select
-                                    value={editForm.topicId}
-                                    onValueChange={(v) =>
-                                      setEditForm({ ...editForm, topicId: v || '' })
-                                    }
-                                  >
-                                    <SelectTrigger className="border-brand-border">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {topics.map((t) => (
-                                        <SelectItem
-                                          key={t.id}
-                                          value={String(t.id)}
-                                        >
-                                          第{t.weekNumber}週: {t.topicText}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                  <div>
-                                    <Label>開始時刻</Label>
-                                    <Input
-                                      value={editForm.startTime}
-                                      onChange={(e) =>
-                                        setEditForm({
-                                          ...editForm,
-                                          startTime: e.target.value,
-                                        })
-                                      }
-                                      className="border-brand-border"
-                                    />
-                                  </div>
-                                  <div>
-                                    <Label>終了時刻</Label>
-                                    <Input
-                                      value={editForm.endTime}
-                                      onChange={(e) =>
-                                        setEditForm({
-                                          ...editForm,
-                                          endTime: e.target.value,
-                                        })
-                                      }
-                                      className="border-brand-border"
-                                    />
-                                  </div>
-                                </div>
-                                <div>
-                                  <Label>状態</Label>
-                                  <Select
-                                    value={editForm.status}
-                                    onValueChange={(v) =>
-                                      setEditForm({ ...editForm, status: v || '' })
-                                    }
-                                  >
-                                    <SelectTrigger className="border-brand-border">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="scheduled">
-                                        予定
-                                      </SelectItem>
-                                      <SelectItem value="completed">
-                                        完了
-                                      </SelectItem>
-                                      <SelectItem value="cancelled">
-                                        キャンセル
-                                      </SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div>
-                                  <Label>運営メモ</Label>
-                                  <Textarea
-                                    value={editForm.adminNote}
-                                    onChange={(e) =>
-                                      setEditForm({
-                                        ...editForm,
-                                        adminNote: e.target.value,
-                                      })
-                                    }
-                                    className="border-brand-border"
-                                    placeholder="任意のメモ"
-                                  />
-                                </div>
-                                <Button
-                                  onClick={saveEdit}
-                                  className="w-full bg-brand-primary hover:bg-brand-secondary"
-                                >
-                                  保存
-                                </Button>
-                              </div>
-                            )}
-                          </DialogContent>
-                        </Dialog>
-                      </TableCell>
+            <table className="w-full border-collapse">
+              <thead>
+                <tr className="bg-[#F8F9FC] border-b border-[#E0E4EF]">
+                  {['日付','巡目','発話者','等級','主題','状態', ...(isAdmin?['操作']:[])].map(h => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-bold text-[#00135D] whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((s, i) => (
+                  <tr key={s.id} className={`border-b border-[#E0E4EF] ${i%2===0?'bg-white':'bg-[#F8F9FC]'} hover:bg-[#F0F7FF] transition-colors`}>
+                    <td className="px-4 py-3 text-sm font-medium text-[#1A1D23] whitespace-nowrap">{fmtDate(s.date)}</td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-[#E8F2FB] text-[#0070CC] border border-[#BDD9F5]">{s.roundNumber}巡目</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm font-semibold text-[#1A1D23]">{s.speaker.name}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{GRADE_LABELS[s.speaker.grade] || s.speaker.grade}</td>
+                    <td className="px-4 py-3 text-xs text-[#3D4252] max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{s.topic.topicText}</td>
+                    <td className="px-4 py-3">
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${statusStyle[s.status] || statusStyle.scheduled}`}>{statusLabel[s.status] || s.status}</span>
+                    </td>
+                    {isAdmin && (
+                      <td className="px-4 py-3">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(s)}
+                          className="w-7 h-7 p-0 hover:bg-[#F5F7FA] border border-[#E0E4EF]">
+                          <Pencil className="h-3 w-3 text-[#3D4252]" />
+                        </Button>
+                      </td>
                     )}
-                  </TableRow>
+                  </tr>
                 ))}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
+
+      {/* Edit modal */}
+      {editSession && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setEditSession(null)}>
+          <div className="bg-white rounded-[16px] w-full max-w-[440px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
+            onClick={e => e.stopPropagation()}>
+            <div className="bg-gradient-to-r from-[#00135D] to-[#1E3A8A] px-6 py-5">
+              <p className="text-white font-bold text-[15px]">セッション編集</p>
+              <p className="text-white/70 text-xs mt-1">{fmtDate(editSession.date)} のセッション</p>
+            </div>
+            <div className="p-6 flex flex-col gap-4">
+              <div>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">発話者</Label>
+                <Select value={editForm.speakerId} onValueChange={v => setEditForm({ ...editForm, speakerId: v||'' })}>
+                  <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id}>{u.name} ({GRADE_LABELS[u.grade]||u.grade})</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">主題</Label>
+                <Select value={editForm.topicId} onValueChange={v => setEditForm({ ...editForm, topicId: v||'' })}>
+                  <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>{topics.map(t => <SelectItem key={t.id} value={String(t.id)}>第{t.weekNumber}週: {t.topicText}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {[['startTime','開始時刻'],['endTime','終了時刻']].map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">{label}</Label>
+                    <Input value={(editForm as any)[key]} onChange={e => setEditForm({ ...editForm, [key]: e.target.value })}
+                      className="border-[#E0E4EF] h-9 text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">状態</Label>
+                <Select value={editForm.status} onValueChange={v => setEditForm({ ...editForm, status: v||'' })}>
+                  <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="scheduled">予定</SelectItem>
+                    <SelectItem value="completed">完了</SelectItem>
+                    <SelectItem value="cancelled">中止</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">運営メモ</Label>
+                <Textarea value={editForm.adminNote} onChange={e => setEditForm({ ...editForm, adminNote: e.target.value })}
+                  className="border-[#E0E4EF] text-sm resize-none" rows={3} placeholder="任意のメモ" />
+              </div>
+              <Button onClick={saveEdit}
+                className="w-full bg-[#00135D] hover:bg-[#1E3A8A] text-white rounded-xl h-11 font-bold shadow-[0_4px_12px_rgba(0,19,93,0.25)]">
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

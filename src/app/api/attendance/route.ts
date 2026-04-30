@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const sessionId = searchParams.get('sessionId');
   const userId = searchParams.get('userId');
-  const userRole = (session.user as { role: string }).role;
+  const userRole = session.user.role;
 
   const where: Record<string, unknown> = {};
 
@@ -44,7 +44,7 @@ export async function GET(request: Request) {
 // PUT /api/attendance - Update attendance
 export async function PUT(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -32,7 +32,7 @@ export async function GET(request: Request) {
 // PUT /api/holidays - Toggle holiday active status (admin only)
 export async function PUT(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

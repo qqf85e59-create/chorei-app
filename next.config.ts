@@ -10,6 +10,20 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Prevent browsers from caching stale page/data responses
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "no-store, must-revalidate",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

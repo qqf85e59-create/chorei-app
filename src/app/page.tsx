@@ -8,7 +8,7 @@ export default async function RootPage() {
     redirect('/login');
   }
 
-  const userRole = (session.user as { role: string }).role;
+  const userRole = session.user.role;
 
   if (userRole === 'admin') {
     redirect('/dashboard');

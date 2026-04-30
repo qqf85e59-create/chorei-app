@@ -7,23 +7,31 @@ import { auth } from '@/lib/auth';
 // Upserts a CommentatorView record (userId, sessionId) with current timestamp.
 // Dismisses the "changed" diff highlight for this user/session.
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    const { sessionId } = body;
+    if (typeof sessionId !== 'number') {
+      return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
+    }
+
+    const now = new Date();
+    await prisma.commentatorView.upsert({
+      where: { userId_sessionId: { userId: session.user.id, sessionId } },
+      update: { seenAt: now },
+      create: { userId: session.user.id, sessionId, seenAt: now },
+    });
+
+    return NextResponse.json({ ok: true, seenAt: now });
+  } catch (err) {
+    console.error('[POST /api/sessions/mark-viewed]', err);
+    return NextResponse.json(
+      { error: 'Internal Server Error', detail: (err as Error).message },
+      { status: 500 }
+    );
   }
-
-  const body = await request.json().catch(() => ({}));
-  const { sessionId } = body;
-  if (typeof sessionId !== 'number') {
-    return NextResponse.json({ error: 'Invalid sessionId' }, { status: 400 });
-  }
-
-  const now = new Date();
-  await prisma.commentatorView.upsert({
-    where: { userId_sessionId: { userId: session.user.id, sessionId } },
-    update: { seenAt: now },
-    create: { userId: session.user.id, sessionId, seenAt: now },
-  });
-
-  return NextResponse.json({ ok: true, seenAt: now });
 }

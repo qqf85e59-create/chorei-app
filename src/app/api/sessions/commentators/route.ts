@@ -2,9 +2,10 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
 
+// [12] Phase 1 sessions do not have the commentator concept
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -16,13 +17,22 @@ export async function POST(request: Request) {
   }
 
   try {
-    // 1. 対象セッションを取得（メイン発話者を知るため）
+    // 1. 対象セッションを取得（メイン発話者を知るため）+ Phase 情報
     const targetSession = await prisma.session.findUnique({
       where: { id: sessionId },
+      include: { phase: { select: { phaseNumber: true } } },
     });
 
     if (!targetSession) {
       return NextResponse.json({ error: 'Session not found' }, { status: 404 });
+    }
+
+    // [12] Phase1 では応答者の概念がないため 400 エラー
+    if (targetSession.phase.phaseNumber === 1) {
+      return NextResponse.json(
+        { error: 'Phase1セッションには応答者の概念がありません' },
+        { status: 400 }
+      );
     }
 
     // 2. サブ発話者候補となる全ユーザーを取得（メイン発話者は除外）

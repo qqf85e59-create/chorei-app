@@ -7,87 +7,92 @@ async function main() {
   console.log('🌱 Seeding database...');
 
   // Clean existing data
+  await prisma.notification.deleteMany();
+  await prisma.commentatorView.deleteMany();
+  await prisma.configHistory.deleteMany();
   await prisma.absenceRequest.deleteMany();
   await prisma.attendance.deleteMany();
   await prisma.session.deleteMany();
   await prisma.topic.deleteMany();
   await prisma.phase.deleteMany();
   await prisma.holiday.deleteMany();
+  await prisma.config.deleteMany();
   await prisma.user.deleteMany();
 
   // Hash password
   const defaultPassword = await bcrypt.hash('chorei2026', 10);
 
-  // Create users (8 members)
+  // ── 実メンバー（人財システムより） ──────────────────────────────
+  // 等級はPDF未掲載のためデフォルト E3a。管理画面から随時更新可能。
   const users = await Promise.all([
     prisma.user.create({
       data: {
-        name: '鈴木 太郎',
+        name: '氏家 浩則',
         grade: 'E5',
-        email: 'suzuki@example.com',
+        email: 'ujiieh@attax.co.jp',
         password: defaultPassword,
         role: 'admin',
       },
     }),
     prisma.user.create({
       data: {
-        name: '佐藤 花子',
-        grade: 'E4p',
-        email: 'sato@example.com',
-        password: defaultPassword,
-        role: 'member',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: '田中 一郎',
-        grade: 'E4',
-        email: 'tanaka@example.com',
-        password: defaultPassword,
-        role: 'member',
-      },
-    }),
-    prisma.user.create({
-      data: {
-        name: '伊藤 美咲',
+        name: '篠原 俊伍',
         grade: 'E3a',
-        email: 'ito@example.com',
+        email: 'shinohara@attax.co.jp',
         password: defaultPassword,
         role: 'member',
       },
     }),
     prisma.user.create({
       data: {
-        name: '渡辺 健太',
-        grade: 'E3b',
-        email: 'watanabe@example.com',
+        name: '門田 美由紀',
+        grade: 'E3a',
+        email: 'kadota@attax.co.jp',
         password: defaultPassword,
         role: 'member',
       },
     }),
     prisma.user.create({
       data: {
-        name: '高橋 由美',
-        grade: 'E3c',
-        email: 'takahashi@example.com',
+        name: '水谷 友哉',
+        grade: 'E3a',
+        email: 'mizutaniyu@attax.co.jp',
         password: defaultPassword,
         role: 'member',
       },
     }),
     prisma.user.create({
       data: {
-        name: '山本 翔太',
-        grade: 'E2a',
-        email: 'yamamoto@example.com',
+        name: '栗田 駿人',
+        grade: 'E3a',
+        email: 'kurita@attax.co.jp',
         password: defaultPassword,
         role: 'member',
       },
     }),
     prisma.user.create({
       data: {
-        name: '中村 あゆみ',
-        grade: 'E2b',
-        email: 'nakamura@example.com',
+        name: '日髙 恕保',
+        grade: 'E3a',
+        email: 'hidaka@attax.co.jp',
+        password: defaultPassword,
+        role: 'member',
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: '佐藤 翼',
+        grade: 'E3a',
+        email: 'satot@attax.co.jp',
+        password: defaultPassword,
+        role: 'member',
+      },
+    }),
+    prisma.user.create({
+      data: {
+        name: '佐藤 駿',
+        grade: 'E3a',
+        email: 'satosh@attax.co.jp',
         password: defaultPassword,
         role: 'member',
       },
@@ -194,9 +199,10 @@ async function main() {
   console.log(`✅ Created ${holidays.length} holidays`);
 
   // Generate Phase 1, Round 1 sessions
-  // Sort by grade: E2a, E2b, E3a, E3b, E3c, E4, E4p, E5 (lower to upper)
+  // Speakers: �仙台メンバー7名（門田さんは東京のため除外）
   const gradeOrder = ['E2a', 'E2b', 'E3a', 'E3b', 'E3c', 'E4', 'E4p', 'E5'];
-  const sortedUsers = [...users].sort(
+  const speakerUsers = users.filter(u => u.email !== 'kadota@attax.co.jp'); // 仙台在籍者のみ
+  const sortedSpeakers = [...speakerUsers].sort(
     (a, b) => gradeOrder.indexOf(a.grade) - gradeOrder.indexOf(b.grade)
   );
 
@@ -226,10 +232,10 @@ async function main() {
     return dates;
   }
 
-  // 8 sessions for round 1 + 1 review session = 9 total
-  const sessionDates = getSessionDates(new Date('2026-05-07'), 9, holidayDates);
+  // 7 speakers + 1 review session = 8 total
+  const sessionCount = sortedSpeakers.length + 1;
+  const sessionDates = getSessionDates(new Date('2026-05-07'), sessionCount, holidayDates);
 
-  // Assign topics based on week number
   function getWeekNumber(date: Date, startDate: Date): number {
     const msPerDay = 86400000;
     const daysDiff = Math.floor(
@@ -242,8 +248,7 @@ async function main() {
     const date = sessionDates[i];
     const weekNum = getWeekNumber(date, new Date('2026-05-07'));
 
-    if (i < 8) {
-      // Regular sessions with speakers
+    if (i < sortedSpeakers.length) {
       const topicIndex = Math.min(weekNum - 1, topics.length - 1);
       await prisma.session.create({
         data: {
@@ -251,7 +256,7 @@ async function main() {
           phaseId: phase1.id,
           weekNumber: weekNum,
           topicId: topics[topicIndex].id,
-          speakerId: sortedUsers[i].id,
+          speakerId: sortedSpeakers[i].id,
           startTime: '09:00',
           endTime: '09:10',
           status: 'scheduled',
@@ -259,14 +264,14 @@ async function main() {
         },
       });
     } else {
-      // 9th session: review (運営内棚卸し)
+      // 最終回: 運営内棚卸し
       await prisma.session.create({
         data: {
           date: date,
           phaseId: phase1.id,
           weekNumber: weekNum,
-          topicId: topics[0].id, // placeholder topic
-          speakerId: users[0].id, // admin as placeholder
+          topicId: topics[0].id,
+          speakerId: users[0].id, // 氏家さん（admin）
           startTime: '09:00',
           endTime: '09:10',
           status: 'scheduled',
@@ -279,29 +284,28 @@ async function main() {
 
   console.log(`✅ Created ${sessionDates.length} sessions for Phase 1 Round 1`);
 
-  // Create default attendance records (all present) for future sessions
-  for (let i = 0; i < Math.min(sessionDates.length, 8); i++) {
-    const sessions = await prisma.session.findMany({
-      where: { date: sessionDates[i] },
-    });
-    for (const session of sessions) {
-      for (const user of users) {
-        await prisma.attendance.create({
-          data: {
-            sessionId: session.id,
-            userId: user.id,
-            status: 'present',
-          },
-        });
-      }
+  // Create default attendance records (all present) for all sessions
+  const allSessions = await prisma.session.findMany();
+  for (const session of allSessions) {
+    for (const user of users) {
+      await prisma.attendance.create({
+        data: {
+          sessionId: session.id,
+          userId: user.id,
+          status: 'present',
+        },
+      });
     }
   }
 
   console.log('✅ Created default attendance records');
   console.log('🎉 Seeding completed!');
-  console.log('\n📋 Login credentials:');
-  console.log('   Admin: suzuki@example.com / chorei2026');
-  console.log('   Members: [lastname]@example.com / chorei2026');
+  console.log('\n📋 ログイン情報（全員共通パスワード: chorei2026）:');
+  console.log('   管理者: ujiieh@attax.co.jp');
+  console.log('   メンバー:');
+  users.filter(u => u.role === 'member').forEach(u => {
+    console.log(`     ${u.name}: ${u.email}`);
+  });
 }
 
 main()

@@ -22,6 +22,7 @@ model User {
   absenceRequests   AbsenceRequest[]
   commentatorViews  CommentatorView[]
   configHistories   ConfigHistory[]  @relation("ConfigHistoryChangedBy")
+  notifications     Notification[]
 }
 
 model Phase {
@@ -70,6 +71,7 @@ model Session {
   attendances      Attendance[]
   absenceRequests  AbsenceRequest[]
   commentatorViews CommentatorView[]
+  notifications    Notification[]
 }
 
 model Attendance {
@@ -93,9 +95,24 @@ model AbsenceRequest {
   type        String
   requestedAt DateTime @default(now())
   note        String?
+  originalSpeaker          Boolean  @default(false)
+  previousAttendanceStatus String?
 
   user    User    @relation(fields: [userId], references: [id])
   session Session @relation(fields: [sessionId], references: [id])
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    String
+  sessionId Int?
+  type      String
+  message   String
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  user    User     @relation(fields: [userId], references: [id])
+  session Session? @relation(fields: [sessionId], references: [id])
 }
 
 model Holiday {

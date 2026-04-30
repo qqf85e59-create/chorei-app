@@ -29,13 +29,13 @@ export const DAY_LABELS: Record<number, string> = {
 export const BRAND_COLORS = {
   primary: '#00135D',
   secondary: '#1E3A8A',
-  accent: '#3B82F6',
-  danger: '#DC2626',
+  accent: '#0070CC',
+  danger: '#C0392B',
   warning: '#F59E0B',
-  success: '#059669',
-  border: '#DDDFE9',
-  bgLight: '#F7F7F7',
-  text: '#212529',
+  success: '#047857',
+  border: '#E0E4EF',
+  bgLight: '#F5F7FA',
+  text: '#1A1D23',
 } as const;
 
 // Grand Rule text

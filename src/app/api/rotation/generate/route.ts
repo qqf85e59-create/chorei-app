@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma';
 // POST /api/rotation/generate - Generate rotation schedule
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

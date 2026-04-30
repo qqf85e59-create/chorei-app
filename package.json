@@ -11,7 +11,8 @@
     "db:migrate": "npx prisma migrate dev",
     "db:seed": "npx prisma db seed",
     "db:reset": "npx prisma migrate reset",
-    "db:push": "npx prisma db push"
+    "db:push": "npx prisma db push",
+    "db:full-schedule": "npx tsx prisma/full-schedule.ts"
   },
   "prisma": {
     "seed": "npx tsx prisma/seed.ts"

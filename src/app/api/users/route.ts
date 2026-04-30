@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userRole = (session.user as { role: string }).role;
+  const userRole = session.user.role;
 
   if (userRole === 'admin') {
     const users = await prisma.user.findMany({
@@ -42,7 +42,7 @@ export async function GET() {
 // POST /api/users - Create a new user (admin only)
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -75,7 +75,7 @@ export async function POST(request: Request) {
 // PUT /api/users - Update a user (admin only)
 export async function PUT(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -106,7 +106,7 @@ export async function PUT(request: Request) {
 // DELETE /api/users - Delete a user (admin only)
 export async function DELETE(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
