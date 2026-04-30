@@ -97,7 +97,7 @@ export function SpeechTimer({ defaultSeconds = 180 }: { defaultSeconds?: number 
               className="h-11 w-11 p-0 rounded-full text-muted-foreground hover:text-[#1A1D23] hover:bg-[#F0F2F8]"
               onClick={resetTimer}
             >
-              <RotateCcw className="h-4.5 w-4.5" />
+              <RotateCcw className="h-4 w-4" />
             </Button>
           </div>
         </div>
