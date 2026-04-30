@@ -207,29 +207,80 @@ export default function HomePage() {
       <div className="mx-auto max-w-3xl px-4 py-7 sm:px-6 animate-fade-in">
 
         {/* Welcome */}
-        <div className="flex items-end justify-between mb-6 pb-5 border-b border-[#E0E4EF]">
-          <div>
-            <p className="text-xs text-muted-foreground font-medium mb-1">
-              {new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' })}
-            </p>
-            <h1 className="text-[22px] font-bold text-[#00135D] tracking-tight">
-              おはようございます、{session?.user?.name}さん
-            </h1>
-          </div>
-          {todaySession && (
-            <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-xs px-3 py-1">
-              第{todaySession.phase.phaseNumber}フェーズ進行中
-            </Badge>
-          )}
+        <div className="mb-6 pb-5 border-b border-[#E0E4EF]">
+          <p className="text-xs text-muted-foreground font-medium mb-1">
+            {new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric', weekday:'long' })}
+          </p>
+          <h1 className="text-[22px] font-bold text-[#00135D] tracking-tight">
+            おはようございます、{session?.user?.name}さん
+          </h1>
         </div>
 
         <div className="space-y-4">
+          {/* ── フェーズ進行情報（現在フェーズのみ） ── */}
+          {(() => {
+            const todayStr = new Date().toISOString().split('T')[0];
+            const activePhase = phaseInfo.find(ph =>
+              ph.startDate.split('T')[0] <= todayStr &&
+              ph.endDate.split('T')[0] >= todayStr
+            );
+            if (!activePhase) return null;
+            const flow = PHASE_FLOW[activePhase.phaseNumber] ?? [];
+            const start = new Date(activePhase.startDate);
+            const end = new Date(activePhase.endDate);
+            const startStr = `${start.getUTCMonth()+1}月${start.getUTCDate()}日`;
+            const endStr = `${end.getUTCMonth()+1}月${end.getUTCDate()}日`;
+            return (
+              <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+                <div className="px-5 py-3.5 border-b border-[#E0E4EF] flex items-center justify-between">
+                  <p className="text-sm font-bold text-[#00135D] flex items-center gap-2">
+                    <TrendingUp className="h-3.5 w-3.5 text-[#0070CC]" />
+                    第{activePhase.phaseNumber}フェーズ · {activePhase.name}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <Badge className="bg-[#0070CC] text-white text-[10px] px-2 py-0">進行中</Badge>
+                    <span className="text-[10px] text-muted-foreground">{startStr}〜{endStr}　全{activePhase._count.sessions}回</span>
+                  </div>
+                </div>
+                <div className="p-4 space-y-3">
+                  {activePhase.description && (
+                    <p className="text-xs text-[#3D4252] leading-relaxed">{activePhase.description}</p>
+                  )}
+                  {flow.length > 0 && (
+                    <div>
+                      <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-2">進行フロー</p>
+                      <div className="relative border border-[#E0E4EF] rounded-lg overflow-hidden">
+                        <div className="grid grid-cols-[5rem_3.5rem_1fr] bg-[#F0F2F8] border-b border-[#E0E4EF]">
+                          <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">区分</span>
+                          <span className="px-2 py-1.5 text-[10px] font-bold text-[#3D4252]">時間</span>
+                          <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">内容</span>
+                        </div>
+                        {flow.map((step, i) => (
+                          <div key={i} className={`grid grid-cols-[5rem_3.5rem_1fr] ${i < flow.length-1 ? 'border-b border-[#E0E4EF]' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-[#F8F9FC]'}`}>
+                            <span className="px-2.5 py-2 text-[11px] font-semibold text-[#00135D] leading-snug flex items-center">{step.label}</span>
+                            <span className="px-2 py-2 text-[11px] text-[#0070CC] font-medium leading-snug flex items-center whitespace-nowrap">{step.time}</span>
+                            <span className="px-2.5 py-2 text-[11px] text-[#3D4252] leading-snug flex items-center">{step.detail}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })()}
+
           {/* Today's session */}
           <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-[#00135D] to-[#1E3A8A] px-6 py-4">
+            <div className="bg-gradient-to-r from-[#00135D] to-[#1E3A8A] px-6 py-4 flex items-center justify-between">
               <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
                 <CalendarDays className="h-4 w-4" />本日の朝礼
               </h2>
+              <Link href="/absence">
+                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90 hover:text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
+                  <UserMinus className="h-3 w-3" />欠席申告
+                </div>
+              </Link>
             </div>
             <CardContent className="p-6">
               {todaySession ? (
@@ -382,115 +433,94 @@ export default function HomePage() {
             </CardContent>
           </Card>
 
-          {/* Timer */}
-          {todaySession && todaySession.status !== 'completed' && (
-            <div className="animate-fade-in">
-              <SpeechTimer defaultSeconds={180} />
-            </div>
-          )}
+          {/* Timer（常時表示） */}
+          <SpeechTimer defaultSeconds={180} />
 
-          {/* ══ 本日の朝礼下セクション ══ */}
-
-          {/* ── 次回の予定 ＋ 欠席申告（2カラム） ── */}
-          <div className="grid grid-cols-2 gap-3">
-            {/* 次回の予定 */}
-            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden flex flex-col">
-              <div className="bg-[#F0F4FF] px-3 py-2.5 border-b border-[#E0E4EF]">
-                <p className="text-[11px] font-bold text-[#00135D] flex items-center gap-1.5">
-                  <CalendarDays className="h-3 w-3" />次回の予定
-                </p>
-              </div>
-              <CardContent className="p-3 flex-1">
-                {upcomingSessions[0] ? (() => {
-                  const s = upcomingSessions[0];
-                  const isP1 = s.phase.phaseNumber === 1;
-                  const isP2 = s.phase.phaseNumber >= 2;
-                  const order = upcomingCommentOrders[s.id] || [];
-                  return (
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-xs font-bold text-[#00135D]">{formatDate(s.date)}</p>
-                        <p className="text-[10px] text-muted-foreground">{s.startTime}〜{s.endTime}</p>
-                      </div>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <Mic className="h-2.5 w-2.5 text-[#0070CC] shrink-0" />
-                        <span className="text-[11px] font-semibold text-[#1A1D23] truncate">{s.speaker?.name ?? '未定'}</span>
+          {/* ── 次回の予定 ── */}
+          {upcomingSessions[0] && (() => {
+            const s = upcomingSessions[0];
+            const isP1 = s.phase.phaseNumber === 1;
+            const isP2 = s.phase.phaseNumber >= 2;
+            const order = upcomingCommentOrders[s.id] || [];
+            return (
+              <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+                <div className="bg-[#F0F4FF] px-5 py-3 border-b border-[#E0E4EF] flex items-center justify-between">
+                  <p className="text-[12px] font-bold text-[#00135D] flex items-center gap-1.5">
+                    <CalendarDays className="h-3.5 w-3.5" />次回の予定
+                  </p>
+                  <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[10px]">
+                    第{s.phase.phaseNumber}フェーズ
+                  </Badge>
+                </div>
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="text-sm font-bold text-[#00135D]">{formatDate(s.date)}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">{s.startTime}〜{s.endTime}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1.5">発話者</p>
+                      <div className="flex items-center gap-1.5">
+                        <Mic className="h-3 w-3 text-[#0070CC] shrink-0" />
+                        <span className="text-xs font-semibold text-[#00135D] truncate">{s.speaker?.name ?? '未定'}</span>
                         {s.speaker?.id === session?.user?.id && (
                           <Badge className="bg-[#00135D] text-white text-[9px] py-0 px-1 shrink-0">あなた</Badge>
                         )}
                       </div>
-                      <div className="flex items-start gap-1">
-                        <BookOpen className="h-2.5 w-2.5 text-[#0070CC] shrink-0 mt-0.5" />
-                        <span className="text-[10px] text-muted-foreground leading-snug line-clamp-2">{s.topic.topicText}</span>
-                      </div>
-                      <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[9px]">
-                        第{s.phase.phaseNumber}フェーズ
-                      </Badge>
-                      {/* Phase 1: コメント順（予定） */}
-                      {isP1 && order.length > 0 && (
-                        <div className="pt-1 border-t border-[#E0E4EF]">
-                          <p className="text-[9px] text-muted-foreground mb-1 flex items-center gap-1">
-                            <MessageSquare className="h-2.5 w-2.5" />コメント順
-                          </p>
-                          <div className="flex flex-col gap-0.5">
-                            {order.filter(c => c.commentPosition !== null).map(c => {
-                              const isMe = c.id === session?.user?.id;
-                              return (
-                                <div key={c.id} className="flex items-center gap-1">
-                                  <span className={`w-3.5 h-3.5 rounded-full text-[8px] font-bold flex items-center justify-center shrink-0 ${isMe ? 'bg-[#0070CC] text-white' : 'bg-[#00135D] text-white'}`}>
-                                    {c.commentPosition}
-                                  </span>
-                                  <span className={`text-[10px] ${isMe ? 'text-[#0070CC] font-semibold' : 'text-[#1A1D23]'} truncate`}>{c.name}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                      {/* Phase 2: 応答者 */}
-                      {isP2 && s.commentators && s.commentators.length > 0 && (
-                        <div className="pt-1 border-t border-[#E0E4EF]">
-                          <p className="text-[9px] text-muted-foreground mb-1 flex items-center gap-1">
-                            <Users className="h-2.5 w-2.5" />応答者
-                          </p>
-                          {s.commentators.map(c => (
-                            <div key={c.id} className="flex items-center gap-1">
-                              <span className="text-[11px] font-semibold text-[#1A1D23]">{c.name}</span>
-                              {c.id === session?.user?.id && (
-                                <Badge className="bg-[#0070CC] text-white text-[9px] py-0 px-1">あなた</Badge>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      )}
                     </div>
-                  );
-                })() : (
-                  <p className="text-xs text-muted-foreground">予定なし</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* 欠席・途中退出の申告 */}
-            <Link href="/absence" className="block">
-              <Card className="border-[#FCCACA] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden h-full hover:bg-[#FEF2F2] transition-colors cursor-pointer">
-                <div className="bg-[#FEF2F2] px-3 py-2.5 border-b border-[#FCCACA]">
-                  <p className="text-[11px] font-bold text-[#C0392B] flex items-center gap-1.5">
-                    <UserMinus className="h-3 w-3" />欠席・途中退出
-                  </p>
-                </div>
-                <CardContent className="p-3">
-                  <p className="text-[10px] text-muted-foreground leading-relaxed">
-                    参加できない場合は前日23:59までに申告してください
-                  </p>
-                  <div className="mt-3 flex items-center gap-0.5 text-[#C0392B]">
-                    <span className="text-[11px] font-semibold">申告する</span>
-                    <ChevronRight className="h-3 w-3" />
+                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
+                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1.5">主題</p>
+                      <div className="flex items-start gap-1.5">
+                        <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0 mt-0.5" />
+                        <span className="text-xs font-semibold text-[#00135D] leading-snug line-clamp-2">{s.topic.topicText}</span>
+                      </div>
+                    </div>
                   </div>
+                  {/* Phase 1: コメント順（予定） */}
+                  {isP1 && order.length > 0 && (
+                    <div className="mt-3 bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <MessageSquare className="h-3 w-3" />コメント順（予定）
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {order.filter(c => c.commentPosition !== null).map(c => {
+                          const isMe = c.id === session?.user?.id;
+                          return (
+                            <div key={c.id} className="flex items-center gap-1">
+                              <span className={`w-5 h-5 rounded-full text-[10px] font-bold flex items-center justify-center shrink-0 ${isMe ? 'bg-[#0070CC] text-white' : 'bg-[#00135D] text-white'}`}>
+                                {c.commentPosition}
+                              </span>
+                              <span className={`text-xs font-medium ${isMe ? 'text-[#0070CC]' : 'text-[#1A1D23]'}`}>{c.name}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                  {/* Phase 2: 応答者 */}
+                  {isP2 && s.commentators && s.commentators.length > 0 && (
+                    <div className="mt-3 bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
+                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <Users className="h-3 w-3" />応答者
+                      </p>
+                      <div className="flex flex-wrap gap-3">
+                        {s.commentators.map(c => (
+                          <div key={c.id} className="flex items-center gap-1.5">
+                            <span className="text-xs font-semibold text-[#1A1D23]">{c.name}</span>
+                            {c.id === session?.user?.id && (
+                              <Badge className="bg-[#0070CC] text-white text-[9px] py-0 px-1">あなた</Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
-            </Link>
-          </div>
+            );
+          })()}
 
           {/* ── あなたの次の発話予定 ── */}
           {nextSpeaking && (
@@ -508,85 +538,6 @@ export default function HomePage() {
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </div>
               </CardContent>
-            </Card>
-          )}
-
-          {/* ── フェーズ進行情報 ── */}
-          {phaseInfo.length > 0 && (
-            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-              <div className="px-5 py-4 border-b border-[#E0E4EF]">
-                <p className="text-sm font-bold text-[#00135D] flex items-center gap-2">
-                  <TrendingUp className="h-3.5 w-3.5 text-[#0070CC]" />フェーズ進行情報
-                </p>
-              </div>
-              <div className="divide-y divide-[#E0E4EF]">
-                {phaseInfo.map(ph => {
-                  const start = new Date(ph.startDate);
-                  const end = new Date(ph.endDate);
-                  const startStr = `${start.getUTCMonth()+1}月${start.getUTCDate()}日`;
-                  const endStr = `${end.getUTCMonth()+1}月${end.getUTCDate()}日`;
-                  const todayStr = new Date().toISOString().split('T')[0];
-                  const isActive =
-                    ph.startDate.split('T')[0] <= todayStr &&
-                    ph.endDate.split('T')[0] >= todayStr;
-                  const flow = PHASE_FLOW[ph.phaseNumber] ?? [];
-                  return (
-                    <div key={ph.id} className={`p-4 space-y-3 ${isActive ? 'bg-[#E8F2FB]/30' : ''}`}>
-                      <div className="flex gap-4 items-start">
-                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${
-                          isActive ? 'bg-[#0070CC] text-white' : 'bg-[#F0F2F8] text-[#3D4252]'
-                        }`}>
-                          {ph.phaseNumber}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="text-sm font-bold text-[#00135D]">第{ph.phaseNumber}フェーズ · {ph.name}</span>
-                            {isActive && <Badge className="bg-[#0070CC] text-white text-[10px] px-2 py-0">進行中</Badge>}
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {startStr}〜{endStr}　全{ph._count.sessions}回
-                          </p>
-                          {ph.description && (
-                            <p className="text-xs text-[#3D4252] mt-1 leading-relaxed">
-                              {ph.description}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      {flow.length > 0 && (
-                        <div className="ml-[52px]">
-                          <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-2">
-                            進行フロー
-                          </p>
-                          <div className="relative border border-[#E0E4EF] rounded-lg overflow-hidden">
-                            <div className="grid grid-cols-[5rem_3.5rem_1fr] bg-[#F0F2F8] border-b border-[#E0E4EF]">
-                              <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">区分</span>
-                              <span className="px-2 py-1.5 text-[10px] font-bold text-[#3D4252]">時間</span>
-                              <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">内容</span>
-                            </div>
-                            {flow.map((step, i) => (
-                              <div
-                                key={i}
-                                className={`grid grid-cols-[5rem_3.5rem_1fr] ${i < flow.length - 1 ? 'border-b border-[#E0E4EF]' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-[#F8F9FC]'}`}
-                              >
-                                <span className="px-2.5 py-2 text-[11px] font-semibold text-[#00135D] leading-snug flex items-center">
-                                  {step.label}
-                                </span>
-                                <span className="px-2 py-2 text-[11px] text-[#0070CC] font-medium leading-snug flex items-center whitespace-nowrap">
-                                  {step.time}
-                                </span>
-                                <span className="px-2.5 py-2 text-[11px] text-[#3D4252] leading-snug flex items-center">
-                                  {step.detail}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
             </Card>
           )}
 
