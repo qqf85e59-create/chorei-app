@@ -389,108 +389,125 @@ export default function HomePage() {
             </div>
           )}
 
-          {/* ── 次回以降の朝礼 ── */}
-          {upcomingSessions.length > 0 && (
-            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-              <div className="bg-gradient-to-r from-[#1E3A8A] to-[#0070CC] px-6 py-4">
-                <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4" />次回以降の朝礼
-                </h2>
+          {/* ══ 本日の朝礼下セクション ══ */}
+
+          {/* ── 次回の予定 ＋ 欠席申告（2カラム） ── */}
+          <div className="grid grid-cols-2 gap-3">
+            {/* 次回の予定 */}
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden flex flex-col">
+              <div className="bg-[#F0F4FF] px-3 py-2.5 border-b border-[#E0E4EF]">
+                <p className="text-[11px] font-bold text-[#00135D] flex items-center gap-1.5">
+                  <CalendarDays className="h-3 w-3" />次回の予定
+                </p>
               </div>
-              <div className="divide-y divide-[#E0E4EF]">
-                {upcomingSessions.map((s, idx) => {
-                  const label = idx === 0 ? '次回' : idx === 1 ? '次々回' : '次々次回';
+              <CardContent className="p-3 flex-1">
+                {upcomingSessions[0] ? (() => {
+                  const s = upcomingSessions[0];
                   const isP1 = s.phase.phaseNumber === 1;
                   const isP2 = s.phase.phaseNumber >= 2;
                   const order = upcomingCommentOrders[s.id] || [];
                   return (
-                    <div key={s.id} className="p-5 space-y-3">
-                      {/* Header row */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <Badge className="bg-[#00135D] text-white text-[10px] px-2 py-0.5">{label}</Badge>
-                          <span className="text-sm font-bold text-[#00135D]">{formatDate(s.date)}</span>
-                          <span className="text-xs text-muted-foreground">{s.startTime}〜{s.endTime}</span>
-                        </div>
-                        <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[10px]">
-                          第{s.phase.phaseNumber}F
-                        </Badge>
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-xs font-bold text-[#00135D]">{formatDate(s.date)}</p>
+                        <p className="text-[10px] text-muted-foreground">{s.startTime}〜{s.endTime}</p>
                       </div>
-
-                      {/* Speaker + Topic */}
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
-                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">発話者</p>
-                          <div className="flex items-center gap-1.5">
-                            <Mic className="h-3 w-3 text-[#0070CC] shrink-0" />
-                            <span className="text-xs font-semibold text-[#00135D] truncate">
-                              {s.speaker?.name ?? '未定'}
-                            </span>
-                            {s.speaker?.id === session?.user?.id && (
-                              <Badge className="bg-[#00135D] text-white text-[9px] py-0 px-1 shrink-0">あなた</Badge>
-                            )}
-                          </div>
-                        </div>
-                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
-                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">主題</p>
-                          <div className="flex items-center gap-1.5">
-                            <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0" />
-                            <span className="text-xs font-semibold text-[#00135D] truncate">{s.topic.topicText}</span>
-                          </div>
-                        </div>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <Mic className="h-2.5 w-2.5 text-[#0070CC] shrink-0" />
+                        <span className="text-[11px] font-semibold text-[#1A1D23] truncate">{s.speaker?.name ?? '未定'}</span>
+                        {s.speaker?.id === session?.user?.id && (
+                          <Badge className="bg-[#00135D] text-white text-[9px] py-0 px-1 shrink-0">あなた</Badge>
+                        )}
                       </div>
-
-                      {/* Phase 1: comment order */}
+                      <div className="flex items-start gap-1">
+                        <BookOpen className="h-2.5 w-2.5 text-[#0070CC] shrink-0 mt-0.5" />
+                        <span className="text-[10px] text-muted-foreground leading-snug line-clamp-2">{s.topic.topicText}</span>
+                      </div>
+                      <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[9px]">
+                        第{s.phase.phaseNumber}フェーズ
+                      </Badge>
+                      {/* Phase 1: コメント順（予定） */}
                       {isP1 && order.length > 0 && (
-                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
-                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
-                            <MessageSquare className="h-2.5 w-2.5" />コメント順（予定）
+                        <div className="pt-1 border-t border-[#E0E4EF]">
+                          <p className="text-[9px] text-muted-foreground mb-1 flex items-center gap-1">
+                            <MessageSquare className="h-2.5 w-2.5" />コメント順
                           </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {order.map(c => {
-                              const inactive = c.status === 'absent' || c.status === 'unspoken';
+                          <div className="flex flex-col gap-0.5">
+                            {order.filter(c => c.commentPosition !== null).map(c => {
                               const isMe = c.id === session?.user?.id;
                               return (
-                                <div key={c.id} className={`flex items-center gap-1 ${inactive ? 'opacity-40' : ''}`}>
-                                  {c.commentPosition !== null ? (
-                                    <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 ${isMe ? 'bg-[#0070CC] text-white' : 'bg-[#00135D] text-white'}`}>
-                                      {c.commentPosition}
-                                    </span>
-                                  ) : (
-                                    <span className="w-4 h-4 rounded-full bg-[#E0E4EF] flex items-center justify-center shrink-0">
-                                      <span className="text-[8px] text-muted-foreground">–</span>
-                                    </span>
-                                  )}
-                                  <span className={`text-[11px] font-medium ${isMe ? 'text-[#0070CC]' : 'text-[#1A1D23]'}`}>{c.name}</span>
+                                <div key={c.id} className="flex items-center gap-1">
+                                  <span className={`w-3.5 h-3.5 rounded-full text-[8px] font-bold flex items-center justify-center shrink-0 ${isMe ? 'bg-[#0070CC] text-white' : 'bg-[#00135D] text-white'}`}>
+                                    {c.commentPosition}
+                                  </span>
+                                  <span className={`text-[10px] ${isMe ? 'text-[#0070CC] font-semibold' : 'text-[#1A1D23]'} truncate`}>{c.name}</span>
                                 </div>
                               );
                             })}
                           </div>
                         </div>
                       )}
-
-                      {/* Phase 2: respondent */}
+                      {/* Phase 2: 応答者 */}
                       {isP2 && s.commentators && s.commentators.length > 0 && (
-                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
-                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
+                        <div className="pt-1 border-t border-[#E0E4EF]">
+                          <p className="text-[9px] text-muted-foreground mb-1 flex items-center gap-1">
                             <Users className="h-2.5 w-2.5" />応答者
                           </p>
-                          <div className="flex flex-wrap gap-2">
-                            {s.commentators.map(c => (
-                              <div key={c.id} className="flex items-center gap-1.5">
-                                <span className="text-xs font-semibold text-[#1A1D23]">{c.name}</span>
-                                {c.id === session?.user?.id && (
-                                  <Badge className="bg-[#0070CC] text-white text-[9px] py-0 px-1">あなた</Badge>
-                                )}
-                              </div>
-                            ))}
-                          </div>
+                          {s.commentators.map(c => (
+                            <div key={c.id} className="flex items-center gap-1">
+                              <span className="text-[11px] font-semibold text-[#1A1D23]">{c.name}</span>
+                              {c.id === session?.user?.id && (
+                                <Badge className="bg-[#0070CC] text-white text-[9px] py-0 px-1">あなた</Badge>
+                              )}
+                            </div>
+                          ))}
                         </div>
                       )}
                     </div>
                   );
-                })}
-              </div>
+                })() : (
+                  <p className="text-xs text-muted-foreground">予定なし</p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* 欠席・途中退出の申告 */}
+            <Link href="/absence" className="block">
+              <Card className="border-[#FCCACA] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden h-full hover:bg-[#FEF2F2] transition-colors cursor-pointer">
+                <div className="bg-[#FEF2F2] px-3 py-2.5 border-b border-[#FCCACA]">
+                  <p className="text-[11px] font-bold text-[#C0392B] flex items-center gap-1.5">
+                    <UserMinus className="h-3 w-3" />欠席・途中退出
+                  </p>
+                </div>
+                <CardContent className="p-3">
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    参加できない場合は前日23:59までに申告してください
+                  </p>
+                  <div className="mt-3 flex items-center gap-0.5 text-[#C0392B]">
+                    <span className="text-[11px] font-semibold">申告する</span>
+                    <ChevronRight className="h-3 w-3" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+
+          {/* ── あなたの次の発話予定 ── */}
+          {nextSpeaking && (
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl">
+              <CardContent className="p-0">
+                <div className="flex items-center gap-4 p-5">
+                  <div className="w-11 h-11 rounded-xl bg-[#E8F2FB] flex items-center justify-center shrink-0">
+                    <Mic className="h-5 w-5 text-[#0070CC]" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-muted-foreground font-medium mb-1">あなたの次の発話予定</p>
+                    <p className="text-sm font-bold text-[#00135D] tracking-tight">{formatDate(nextSpeaking.date)}</p>
+                    <p className="text-xs text-[#1E3A8A] mt-1">主題：{nextSpeaking.topic.topicText}</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </div>
+              </CardContent>
             </Card>
           )}
 
@@ -515,7 +532,6 @@ export default function HomePage() {
                   const flow = PHASE_FLOW[ph.phaseNumber] ?? [];
                   return (
                     <div key={ph.id} className={`p-4 space-y-3 ${isActive ? 'bg-[#E8F2FB]/30' : ''}`}>
-                      {/* フェーズヘッダ */}
                       <div className="flex gap-4 items-start">
                         <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${
                           isActive ? 'bg-[#0070CC] text-white' : 'bg-[#F0F2F8] text-[#3D4252]'
@@ -537,21 +553,17 @@ export default function HomePage() {
                           )}
                         </div>
                       </div>
-
-                      {/* 進行フロー */}
                       {flow.length > 0 && (
                         <div className="ml-[52px]">
                           <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-2">
                             進行フロー
                           </p>
                           <div className="relative border border-[#E0E4EF] rounded-lg overflow-hidden">
-                            {/* ヘッダ行 */}
                             <div className="grid grid-cols-[5rem_3.5rem_1fr] bg-[#F0F2F8] border-b border-[#E0E4EF]">
                               <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">区分</span>
                               <span className="px-2 py-1.5 text-[10px] font-bold text-[#3D4252]">時間</span>
                               <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">内容</span>
                             </div>
-                            {/* データ行 */}
                             {flow.map((step, i) => (
                               <div
                                 key={i}
@@ -602,25 +614,6 @@ export default function HomePage() {
           {/* Next commentators / respondent (Phase 2/3) */}
           <NextCommentatorsCard />
 
-          {/* Next speaking */}
-          {nextSpeaking && (
-            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl">
-              <CardContent className="p-0">
-                <div className="flex items-center gap-4 p-5">
-                  <div className="w-11 h-11 rounded-xl bg-[#E8F2FB] flex items-center justify-center shrink-0">
-                    <Mic className="h-5 w-5 text-[#0070CC]" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[11px] text-muted-foreground font-medium mb-1">あなたの次の発話予定</p>
-                    <p className="text-sm font-bold text-[#00135D] tracking-tight">{formatDate(nextSpeaking.date)}</p>
-                    <p className="text-xs text-[#1E3A8A] mt-1">主題：{nextSpeaking.topic.topicText}</p>
-                  </div>
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
           {/* Past speaking */}
           {pastSpeaking.length > 0 && (
             <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
@@ -646,15 +639,7 @@ export default function HomePage() {
           <Separator className="bg-[#E0E4EF]" />
 
           {/* Action buttons */}
-          <div className="grid grid-cols-3 gap-3">
-            <Link href="/absence">
-              <button className="w-full flex flex-col items-center gap-2.5 py-5 px-3 border border-[#E0E4EF] rounded-xl bg-white cursor-pointer font-[inherit] text-xs text-[#3D4252] font-medium hover:bg-[#FEF2F2] hover:border-[#FCCACA] transition-all">
-                <div className="w-9 h-9 rounded-[10px] bg-[#DC262614] flex items-center justify-center">
-                  <UserMinus className="h-[18px] w-[18px] text-[#C0392B]" />
-                </div>
-                欠席・途中退出の申告
-              </button>
-            </Link>
+          <div className="grid grid-cols-2 gap-3">
             <Link href="/grand-rule">
               <button className="w-full flex flex-col items-center gap-2.5 py-5 px-3 border border-[#E0E4EF] rounded-xl bg-white cursor-pointer font-[inherit] text-xs text-[#3D4252] font-medium hover:bg-[#E8F2FB] hover:border-[#BDD9F5] transition-all">
                 <div className="w-9 h-9 rounded-[10px] bg-[#0070CC14] flex items-center justify-center">
