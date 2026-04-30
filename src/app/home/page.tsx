@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   CalendarDays, BookOpen, Mic, Clock, FileText,
   UserMinus, History, MessageSquare,
-  Video, AlertTriangle, ChevronRight, Bell, Users,
+  Video, AlertTriangle, ChevronRight, Bell, Users, TrendingUp,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
@@ -46,6 +46,16 @@ interface NotificationItem {
   readAt: string | null;
 }
 
+interface PhaseInfo {
+  id: number;
+  phaseNumber: number;
+  name: string;
+  startDate: string;
+  endDate: string;
+  description: string | null;
+  _count: { sessions: number };
+}
+
 function formatTimeAgo(dateStr: string) {
   const d = new Date(dateStr);
   const now = new Date();
@@ -74,6 +84,9 @@ export default function HomePage() {
   const [meetingUrl, setMeetingUrl] = useState<string>('');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [commentOrder, setCommentOrder] = useState<CommentOrderItem[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<SessionData[]>([]);
+  const [upcomingCommentOrders, setUpcomingCommentOrders] = useState<Record<number, CommentOrderItem[]>>({});
+  const [phaseInfo, setPhaseInfo] = useState<PhaseInfo[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ── コメント順を取得（Phase 1 専用） ──────────────
@@ -107,11 +120,13 @@ export default function HomePage() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const userId = session?.user?.id;
-      const [urlRes, notiRes, sessionsRes, speakerRes] = await Promise.all([
+      const [urlRes, notiRes, sessionsRes, speakerRes, scheduledRes, phasesRes] = await Promise.all([
         fetch('/api/config/meeting-url'),
         fetch('/api/notifications'),
         fetch(`/api/sessions?date=${today}`),
         userId ? fetch(`/api/sessions?speakerId=${userId}`) : Promise.resolve(null),
+        fetch('/api/sessions?status=scheduled'),
+        fetch('/api/phases'),
       ]);
       if (urlRes.ok) { const u = await urlRes.json(); setMeetingUrl(u.url); }
       if (notiRes.ok) { const n = await notiRes.json(); setNotifications(n.notifications || []); }
@@ -125,13 +140,36 @@ export default function HomePage() {
         const past = mySessions.filter(s => new Date(s.date) <= todayDate);
         setPastSpeaking(past.slice(-3).reverse());
       }
+      // 次回以降3件（今日より後のスケジュール済みセッション）
+      if (scheduledRes.ok) {
+        const allScheduled: SessionData[] = await scheduledRes.json();
+        const upcoming = allScheduled
+          .filter(s => s.date.split('T')[0] > today)
+          .slice(0, 3);
+        setUpcomingSessions(upcoming);
+        // Phase 1 の次回セッションはコメント順を事前取得
+        const phase1Upcoming = upcoming.filter(s => s.phase.phaseNumber === 1);
+        const orders: Record<number, CommentOrderItem[]> = {};
+        await Promise.all(phase1Upcoming.map(async (s) => {
+          const r = await fetch(`/api/sessions/comment-order?sessionId=${s.id}`);
+          if (r.ok) {
+            const d = await r.json();
+            orders[s.id] = d.commentOrder || [];
+          }
+        }));
+        setUpcomingCommentOrders(orders);
+      }
+      if (phasesRes.ok) {
+        const phases: PhaseInfo[] = await phasesRes.json();
+        setPhaseInfo(phases);
+      }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }
 
   const formatDate = (dateStr: string) => {
     const d = new Date(dateStr);
-    return `${d.getMonth()+1}月${d.getDate()}日（${DAY_LABELS[d.getDay()]}）`;
+    return `${d.getUTCMonth()+1}月${d.getUTCDate()}日（${DAY_LABELS[d.getUTCDay()]}）`;
   };
 
   if (loading) return (
@@ -331,6 +369,157 @@ export default function HomePage() {
             <div className="animate-fade-in">
               <SpeechTimer defaultSeconds={180} />
             </div>
+          )}
+
+          {/* ── 次回以降の朝礼 ── */}
+          {upcomingSessions.length > 0 && (
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+              <div className="bg-gradient-to-r from-[#1E3A8A] to-[#0070CC] px-6 py-4">
+                <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
+                  <CalendarDays className="h-4 w-4" />次回以降の朝礼
+                </h2>
+              </div>
+              <div className="divide-y divide-[#E0E4EF]">
+                {upcomingSessions.map((s, idx) => {
+                  const label = idx === 0 ? '次回' : idx === 1 ? '次々回' : '次々次回';
+                  const isP1 = s.phase.phaseNumber === 1;
+                  const isP2 = s.phase.phaseNumber >= 2;
+                  const order = upcomingCommentOrders[s.id] || [];
+                  return (
+                    <div key={s.id} className="p-5 space-y-3">
+                      {/* Header row */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-[#00135D] text-white text-[10px] px-2 py-0.5">{label}</Badge>
+                          <span className="text-sm font-bold text-[#00135D]">{formatDate(s.date)}</span>
+                          <span className="text-xs text-muted-foreground">{s.startTime}〜{s.endTime}</span>
+                        </div>
+                        <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[10px]">
+                          第{s.phase.phaseNumber}F
+                        </Badge>
+                      </div>
+
+                      {/* Speaker + Topic */}
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">発話者</p>
+                          <div className="flex items-center gap-1.5">
+                            <Mic className="h-3 w-3 text-[#0070CC] shrink-0" />
+                            <span className="text-xs font-semibold text-[#00135D] truncate">
+                              {s.speaker?.name ?? '未定'}
+                            </span>
+                            {s.speaker?.id === session?.user?.id && (
+                              <Badge className="bg-[#00135D] text-white text-[9px] py-0 px-1 shrink-0">あなた</Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1">主題</p>
+                          <div className="flex items-center gap-1.5">
+                            <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0" />
+                            <span className="text-xs font-semibold text-[#00135D] truncate">{s.topic.topicText}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Phase 1: comment order */}
+                      {isP1 && order.length > 0 && (
+                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <MessageSquare className="h-2.5 w-2.5" />コメント順（予定）
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {order.map(c => {
+                              const inactive = c.status === 'absent' || c.status === 'unspoken';
+                              const isMe = c.id === session?.user?.id;
+                              return (
+                                <div key={c.id} className={`flex items-center gap-1 ${inactive ? 'opacity-40' : ''}`}>
+                                  {c.commentPosition !== null ? (
+                                    <span className={`w-4 h-4 rounded-full text-[9px] font-bold flex items-center justify-center shrink-0 ${isMe ? 'bg-[#0070CC] text-white' : 'bg-[#00135D] text-white'}`}>
+                                      {c.commentPosition}
+                                    </span>
+                                  ) : (
+                                    <span className="w-4 h-4 rounded-full bg-[#E0E4EF] flex items-center justify-center shrink-0">
+                                      <span className="text-[8px] text-muted-foreground">–</span>
+                                    </span>
+                                  )}
+                                  <span className={`text-[11px] font-medium ${isMe ? 'text-[#0070CC]' : 'text-[#1A1D23]'}`}>{c.name}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Phase 2: respondent */}
+                      {isP2 && s.commentators && s.commentators.length > 0 && (
+                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-2.5">
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
+                            <Users className="h-2.5 w-2.5" />応答者
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {s.commentators.map(c => (
+                              <div key={c.id} className="flex items-center gap-1.5">
+                                <span className="text-xs font-semibold text-[#1A1D23]">{c.name}</span>
+                                {c.id === session?.user?.id && (
+                                  <Badge className="bg-[#0070CC] text-white text-[9px] py-0 px-1">あなた</Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          )}
+
+          {/* ── フェーズ進行情報 ── */}
+          {phaseInfo.length > 0 && (
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+              <div className="px-5 py-4 border-b border-[#E0E4EF]">
+                <p className="text-sm font-bold text-[#00135D] flex items-center gap-2">
+                  <TrendingUp className="h-3.5 w-3.5 text-[#0070CC]" />フェーズ進行情報
+                </p>
+              </div>
+              <div className="divide-y divide-[#E0E4EF]">
+                {phaseInfo.map(ph => {
+                  const start = new Date(ph.startDate);
+                  const end = new Date(ph.endDate);
+                  const startStr = `${start.getUTCMonth()+1}月${start.getUTCDate()}日`;
+                  const endStr = `${end.getUTCMonth()+1}月${end.getUTCDate()}日`;
+                  const todayStr = new Date().toISOString().split('T')[0];
+                  const isActive =
+                    ph.startDate.split('T')[0] <= todayStr &&
+                    ph.endDate.split('T')[0] >= todayStr;
+                  return (
+                    <div key={ph.id} className={`p-4 flex gap-4 items-start ${isActive ? 'bg-[#E8F2FB]/30' : ''}`}>
+                      <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${
+                        isActive ? 'bg-[#0070CC] text-white' : 'bg-[#F0F2F8] text-[#3D4252]'
+                      }`}>
+                        {ph.phaseNumber}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-[#00135D]">第{ph.phaseNumber}フェーズ · {ph.name}</span>
+                          {isActive && <Badge className="bg-[#0070CC] text-white text-[10px] px-2 py-0">進行中</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {startStr}〜{endStr}　全{ph._count.sessions}回
+                        </p>
+                        {ph.description && (
+                          <p className="text-xs text-[#3D4252] mt-1 leading-relaxed line-clamp-2">
+                            {ph.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
           )}
 
           {/* Notifications */}

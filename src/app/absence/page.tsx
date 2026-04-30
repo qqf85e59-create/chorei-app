@@ -3,17 +3,24 @@
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger,
 } from '@/components/ui/select';
 import {
   UserMinus, Send, CheckCircle2, CalendarDays, AlertCircle, Trash2, Info,
 } from 'lucide-react';
 import { DAY_LABELS } from '@/lib/constants';
+
+// 区分の日本語ラベル
+const TYPE_LABELS: Record<string, string> = {
+  absent:      '欠席',
+  unspoken:    '聴講のみ（無言）',
+  leave_early: '途中退出',
+};
 
 interface SessionData {
   id: number; date: string; startTime: string; endTime: string;
@@ -23,6 +30,27 @@ interface SessionData {
 interface AbsenceItem {
   id: number; type: string; note: string | null; requestedAt: string;
   session: { id: number; date: string; topic: { topicText: string } };
+}
+
+/** UTC ベースの日付フォーマット（タイムゾーン非依存） */
+function fmtDate(ds: string): string {
+  const d = new Date(ds);
+  const m   = d.getUTCMonth() + 1;
+  const day = d.getUTCDate();
+  const dow = d.getUTCDay();
+  return `${m}月${day}日（${DAY_LABELS[dow]}）`;
+}
+
+/** セッションの選択肢ラベル */
+function sessionLabel(s: SessionData): string {
+  return `${fmtDate(s.date)}　${s.startTime}〜${s.endTime}`;
+}
+
+/** 前日 23:59 JST までキャンセル可能か（クライアント表示用の簡易判定） */
+function isWithinCutoff(ds: string): boolean {
+  const jstStr = new Date(ds).toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+  const cutoff = new Date(`${jstStr}T00:00:00+09:00`).getTime() - 1000;
+  return Date.now() <= cutoff;
 }
 
 export default function AbsencePage() {
@@ -48,10 +76,15 @@ export default function AbsencePage() {
 
   async function fetchAll() {
     try {
-      const [sr, rr] = await Promise.all([fetch('/api/sessions?status=scheduled'), fetch('/api/absence')]);
+      const [sr, rr] = await Promise.all([
+        fetch('/api/sessions?status=scheduled'),
+        fetch('/api/absence'),
+      ]);
       const sd: SessionData[] = await sr.json();
       const rd = await rr.json();
-      setSessions(sd.filter(s => new Date(s.date) >= new Date(new Date().toDateString())));
+      // 今日以降のセッションのみ（UTC 基準で比較）
+      const todayStr = new Date().toISOString().split('T')[0];
+      setSessions(sd.filter(s => s.date.split('T')[0] >= todayStr));
       setMyRequests(Array.isArray(rd) ? rd : []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -65,13 +98,22 @@ export default function AbsencePage() {
       const res = await fetch('/api/absence', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: parseInt(selectedSessionId), type: absenceType, note: note || null }),
+        body: JSON.stringify({
+          sessionId: parseInt(selectedSessionId),
+          type: absenceType,
+          note: note || null,
+        }),
       });
       if (!res.ok) throw new Error();
       const data = await res.json();
-      if (data.adjustment?.reasons?.length > 0) setAdjustmentMessage(data.adjustment.reasons.join(' / '));
-      setSubmitted(true); fetchAll();
-    } catch { setError('申告の送信に失敗しました。もう一度お試しください。'); }
+      if (data.adjustment?.reasons?.length > 0) {
+        setAdjustmentMessage(data.adjustment.reasons.join(' / '));
+      }
+      setSubmitted(true);
+      fetchAll();
+    } catch {
+      setError('申告の送信に失敗しました。もう一度お試しください。');
+    }
   }
 
   async function handleCancel(id: number) {
@@ -83,14 +125,19 @@ export default function AbsencePage() {
       if (!res.ok) { setCancelMessage(data.error || '取消しに失敗しました'); return; }
       if (data.note) setCancelMessage(data.note);
       fetchAll();
-    } catch { setCancelMessage('通信エラーが発生しました'); }
+    } catch {
+      setCancelMessage('通信エラーが発生しました');
+    }
   }
 
-  const typeLabel = (t: string) => ({ absent:'欠席', unspoken:'聴講のみ', leave_early:'途中退出' }[t] || t);
-  const isWithinCutoff = (ds: string) => { const c = new Date(ds); c.setHours(0,0,0,0); c.setMinutes(c.getMinutes()-1); return new Date() <= c; };
-  const fmtDate = (ds: string) => { const d = new Date(ds); return `${d.getMonth()+1}月${d.getDate()}日（${DAY_LABELS[d.getDay()]}）`; };
+  // 今日以降の申告中予定
+  const todayStr = new Date().toISOString().split('T')[0];
+  const activeRequests = myRequests.filter(
+    r => r.session && r.session.date.split('T')[0] >= todayStr
+  );
 
-  const activeRequests = myRequests.filter(r => r.session && new Date(r.session.date) >= new Date(new Date().toDateString()));
+  // 現在選択中のセッションオブジェクト
+  const selectedSession = sessions.find(s => String(s.id) === selectedSessionId);
 
   if (loading) return (
     <div className="flex h-[60vh] items-center justify-center">
@@ -117,7 +164,7 @@ export default function AbsencePage() {
               </div>
               <h2 className="text-lg font-bold text-[#00135D] mb-2">申告を受け付けました</h2>
               <p className="text-sm text-muted-foreground mb-5 leading-relaxed">
-                運営に通知され、輪番の自動調整が行われました。
+                運営に通知され、スケジュールの自動調整が行われました。
               </p>
               {adjustmentMessage && (
                 <div className="flex items-start gap-2 bg-[#E8F2FB] border border-[#BDD9F5] rounded-lg p-3 text-left text-xs text-[#00135D] mb-5 max-w-xs mx-auto">
@@ -126,7 +173,12 @@ export default function AbsencePage() {
               )}
               <div className="flex gap-3 justify-center">
                 <Button variant="outline" className="border-[#E0E4EF]"
-                  onClick={() => { setSubmitted(false); setSelectedSessionId(''); setNote(''); setAdjustmentMessage(null); }}>
+                  onClick={() => {
+                    setSubmitted(false);
+                    setSelectedSessionId('');
+                    setNote('');
+                    setAdjustmentMessage(null);
+                  }}>
                   別の日も申告する
                 </Button>
                 <Button onClick={() => router.push('/home')}
@@ -149,27 +201,41 @@ export default function AbsencePage() {
                     <AlertCircle className="h-4 w-4 shrink-0" />{error}
                   </div>
                 )}
+
+                {/* ── 申告対象日 ── */}
                 <div>
                   <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 flex items-center gap-1.5">
                     <CalendarDays className="h-3.5 w-3.5" />申告対象日
                   </Label>
                   <Select value={selectedSessionId} onValueChange={v => setSelectedSessionId(v || '')}>
+                    {/* SelectValueを使わず直接テキスト表示（ShadCNのvalue表示バグを回避） */}
                     <SelectTrigger className="border-[#E0E4EF] h-9 text-sm">
-                      <SelectValue placeholder="日付を選択してください" />
+                      <span className={`flex-1 text-left truncate ${!selectedSession ? 'text-muted-foreground' : 'text-[#1A1D23]'}`}>
+                        {selectedSession ? sessionLabel(selectedSession) : '日付を選択してください'}
+                      </span>
                     </SelectTrigger>
                     <SelectContent>
-                      {sessions.map(s => (
+                      {sessions.length === 0 ? (
+                        <div className="py-3 text-center text-sm text-muted-foreground">予定されている朝礼はありません</div>
+                      ) : sessions.map(s => (
                         <SelectItem key={s.id} value={String(s.id)}>
-                          {fmtDate(s.date)} {s.startTime}〜{s.endTime}
+                          {sessionLabel(s)}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* ── 区分 ── */}
                 <div>
                   <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">区分</Label>
                   <Select value={absenceType} onValueChange={v => setAbsenceType(v || 'absent')}>
-                    <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
+                    {/* 同様に直接テキスト表示 */}
+                    <SelectTrigger className="border-[#E0E4EF] h-9 text-sm">
+                      <span className="flex-1 text-left text-[#1A1D23]">
+                        {TYPE_LABELS[absenceType] ?? '区分を選択'}
+                      </span>
+                    </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="absent">欠席</SelectItem>
                       <SelectItem value="unspoken">聴講のみ（無言）</SelectItem>
@@ -177,6 +243,8 @@ export default function AbsencePage() {
                     </SelectContent>
                   </Select>
                 </div>
+
+                {/* ── メモ ── */}
                 <div>
                   <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">メモ（任意）</Label>
                   <Textarea value={note} onChange={e => setNote(e.target.value)}
@@ -184,11 +252,14 @@ export default function AbsencePage() {
                     className="border-[#E0E4EF] text-sm resize-none" rows={3} />
                   <p className="text-xs text-muted-foreground mt-1">※ 理由は問いません（グランドルール第4条）</p>
                 </div>
+
+                {/* ── 注意事項 ── */}
                 <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3 text-xs text-muted-foreground space-y-1 leading-relaxed">
                   <p>・申告は即時反映。発話者欠席時は後続が自動繰上げされます。</p>
-                  <p>・Phase1は参加3名未満、Phase2/3は応答者4名未満で自動中止となります。</p>
+                  <p>・第1フェーズは参加3名未満、第2フェーズは応答者不在で自動中止となります。</p>
                   <p>・本人による取消しは<strong className="text-[#00135D]">前日23:59まで</strong>可能です。</p>
                 </div>
+
                 <Button type="submit"
                   className="w-full bg-[#00135D] hover:bg-[#1E3A8A] text-white rounded-xl h-11 font-bold shadow-[0_4px_14px_rgba(0,19,93,0.25)] gap-2">
                   <Send className="h-4 w-4" />申告する
@@ -198,6 +269,7 @@ export default function AbsencePage() {
           </Card>
         )}
 
+        {/* ── 取消しメッセージ ── */}
         {cancelMessage && (
           <div className={`flex items-start gap-2 p-3 rounded-lg border text-sm mb-1 ${
             cancelMessage.includes('失敗') || cancelMessage.includes('エラー')
@@ -209,6 +281,7 @@ export default function AbsencePage() {
           </div>
         )}
 
+        {/* ── 申告中の予定 ── */}
         {activeRequests.length > 0 && (
           <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl">
             <div className="px-5 py-4 border-b border-[#E0E4EF]">
@@ -220,7 +293,10 @@ export default function AbsencePage() {
                 <div key={r.id} className="flex items-center justify-between p-3 border border-[#E0E4EF] rounded-xl bg-[#F8F9FC]">
                   <div>
                     <p className="text-sm font-semibold text-[#00135D]">{fmtDate(r.session.date)}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">区分：{typeLabel(r.type)}{r.note && `（${r.note}）`}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      区分：{TYPE_LABELS[r.type] ?? r.type}
+                      {r.note && `（${r.note}）`}
+                    </p>
                   </div>
                   {cancelConfirmId === r.id ? (
                     <div className="flex gap-1.5 shrink-0">
