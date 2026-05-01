@@ -63,18 +63,9 @@ function formatDateJP(date: Date): string {
  */
 export async function cascadeSpeakerShift(sessionId: number, absentUserId: string, tx: TxClient = prisma) {
   const target = await tx.session.findUnique({ where: { id: sessionId } });
-  if (!target) return;
+  if (!target || !absentUserId) return;
 
-  const futureSessions = await tx.session.findMany({
-    where: {
-      phaseId: target.phaseId,
-      date: { gte: target.date },
-    },
-    orderBy: { date: 'asc' },
-  });
-  if (futureSessions.length === 0) return;
-
-  // 1. Remove speaker from the target (today)
+  // 1. Clear the absent speaker from the target session (no speaker on this day)
   await tx.session.update({
     where: { id: target.id },
     data: {
@@ -85,73 +76,50 @@ export async function cascadeSpeakerShift(sessionId: number, absentUserId: strin
     },
   });
 
-  if (futureSessions.length > 1) {
-    // 2. Shift speakerId/topicId forward along the chain
-    let prevSpeakerId = futureSessions[0].speakerId;
-    let prevTopicId = futureSessions[0].topicId;
+  // 2. Find the last session in this phase to append after
+  const lastSession = await tx.session.findFirst({
+    where: { phaseId: target.phaseId, status: 'scheduled' },
+    orderBy: { date: 'desc' },
+  });
+  if (!lastSession) return;
 
-    for (let i = 1; i < futureSessions.length; i++) {
-      const s = futureSessions[i];
-      const currSpeakerId = s.speakerId;
-      const currTopicId = s.topicId;
+  // 3. Generate the next available session date after the last session
+  const holidays = await tx.holiday.findMany({ where: { isActive: true } });
+  const holidaySet = new Set(holidays.map((h) => h.date.toISOString().split('T')[0]));
 
-      await tx.session.update({
-        where: { id: s.id },
-        data: {
-          speakerId: prevSpeakerId,
-          topicId: prevTopicId,
-          adminNote: s.adminNote ?? '自動順送り（スケジュール再割当）',
-        },
-      });
+  const nextStartDate = new Date(lastSession.date);
+  nextStartDate.setUTCDate(nextStartDate.getUTCDate() + 1);
+  const nextDates = getSessionDates(nextStartDate, 1, holidaySet);
+  if (nextDates.length === 0) return;
 
-      // [9] Create notification for the newly assigned speaker
-      if (prevSpeakerId && prevSpeakerId !== currSpeakerId) {
-        await tx.notification.create({
-          data: {
-            userId: prevSpeakerId,
-            sessionId: s.id,
-            type: 'speaker_change',
-            message: `${formatDateJP(s.date)} の発話者があなたに変更されました（欠席者繰上げ）`,
-          },
-        });
-      }
+  const newDate = nextDates[0];
+  const weekNum = getWeekNumber(newDate, new Date(target.date));
 
-      prevSpeakerId = currSpeakerId;
-      prevTopicId = currTopicId;
-    }
+  // 4. Append a new session at the end for the absent speaker
+  const newSession = await tx.session.create({
+    data: {
+      date: newDate,
+      phaseId: target.phaseId,
+      weekNumber: weekNum,
+      topicId: target.topicId,
+      speakerId: absentUserId,
+      startTime: target.startTime,
+      endTime: target.endTime,
+      status: 'scheduled',
+      roundNumber: target.roundNumber,
+      adminNote: '自動順送りによる追加枠',
+    },
+  });
 
-    // 3. Create a new session at the end for the displaced (absent) speaker
-    const lastSession = futureSessions[futureSessions.length - 1];
-    const holidays = await tx.holiday.findMany({ where: { isActive: true } });
-    const holidaySet = new Set(holidays.map((h) => h.date.toISOString().split('T')[0]));
-
-    const nextStartDate = new Date(lastSession.date);
-    nextStartDate.setDate(nextStartDate.getDate() + 1);
-    const nextDates = getSessionDates(nextStartDate, 1, holidaySet);
-
-    if (nextDates.length > 0 && prevSpeakerId) {
-      const newDate = nextDates[0];
-      const weekNum = getWeekNumber(newDate, new Date(futureSessions[0].date));
-
-      await tx.session.create({
-        data: {
-          date: newDate,
-          phaseId: lastSession.phaseId,
-          weekNumber: weekNum,
-          topicId: prevTopicId,
-          speakerId: prevSpeakerId,
-          startTime: lastSession.startTime,
-          endTime: lastSession.endTime,
-          status: 'scheduled',
-          roundNumber: lastSession.roundNumber,
-          adminNote: '自動順送りによる追加枠',
-        },
-      });
-    }
-  }
-
-  // Silence unused var warning (absentUserId is reserved for audit/log extension)
-  void absentUserId;
+  // 5. Notify the absent speaker of their new date
+  await tx.notification.create({
+    data: {
+      userId: absentUserId,
+      sessionId: newSession.id,
+      type: 'speaker_change',
+      message: `${formatDateJP(newDate)} に発話が順延されました（欠席による自動振替）`,
+    },
+  });
 }
 
 /**
@@ -168,36 +136,21 @@ export async function reverseCascadeSpeakerShift(
   const target = await tx.session.findUnique({ where: { id: sessionId } });
   if (!target) return;
 
-  const futureSessions = await tx.session.findMany({
+  // 1. Find and delete the auto-appended session for this user
+  //    (the session created at the end by cascadeSpeakerShift)
+  const appendedSession = await tx.session.findFirst({
     where: {
       phaseId: target.phaseId,
-      date: { gte: target.date },
+      speakerId: originalUserId,
+      adminNote: { contains: '自動順送りによる追加枠' },
     },
-    orderBy: { date: 'asc' },
+    orderBy: { date: 'desc' },
   });
-  if (futureSessions.length === 0) return;
-
-  if (futureSessions.length > 1) {
-    // Shift speakers/topics backward (reverse direction)
-    for (let i = 0; i < futureSessions.length - 1; i++) {
-      const nextSession = futureSessions[i + 1];
-      await tx.session.update({
-        where: { id: futureSessions[i].id },
-        data: {
-          speakerId: nextSession.speakerId,
-          topicId: nextSession.topicId,
-        },
-      });
-    }
-
-    // Delete the last session if it was auto-appended
-    const lastSession = futureSessions[futureSessions.length - 1];
-    if (lastSession.adminNote?.includes('自動順送りによる追加枠')) {
-      await tx.session.delete({ where: { id: lastSession.id } });
-    }
+  if (appendedSession) {
+    await tx.session.delete({ where: { id: appendedSession.id } });
   }
 
-  // Restore original speaker on the target session
+  // 2. Restore the original speaker on the target session
   await tx.session.update({
     where: { id: target.id },
     data: {
