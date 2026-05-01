@@ -11,10 +11,13 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const date = searchParams.get('date');
-    const phaseId = searchParams.get('phaseId');
+    const date      = searchParams.get('date');
+    const phaseId   = searchParams.get('phaseId');
     const speakerId = searchParams.get('speakerId');
-    const status = searchParams.get('status');
+    const status    = searchParams.get('status');
+    const after     = searchParams.get('after');   // YYYY-MM-DD: 指定日より後のみ
+    const limitStr  = searchParams.get('limit');
+    const take      = limitStr ? parseInt(limitStr) : undefined;
 
     const where: Record<string, unknown> = {};
 
@@ -22,23 +25,27 @@ export async function GET(request: Request) {
       const targetDate = new Date(date);
       const nextDate = new Date(targetDate);
       nextDate.setDate(nextDate.getDate() + 1);
-      where.date = {
-        gte: targetDate,
-        lt: nextDate,
-      };
+      where.date = { gte: targetDate, lt: nextDate };
     }
 
-    if (phaseId) where.phaseId = parseInt(phaseId);
+    if (after) {
+      const afterDate = new Date(`${after}T00:00:00.000Z`);
+      afterDate.setUTCDate(afterDate.getUTCDate() + 1); // strict >
+      where.date = { ...(where.date as object ?? {}), gte: afterDate };
+    }
+
+    if (phaseId)   where.phaseId   = parseInt(phaseId);
     if (speakerId) where.speakerId = speakerId;
-    if (status) where.status = status;
+    if (status)    where.status    = status;
 
     const sessions = await prisma.session.findMany({
       where,
+      take,
       include: {
-        speaker: { select: { id: true, name: true, grade: true } },
+        speaker:      { select: { id: true, name: true, grade: true } },
         commentators: { select: { id: true, name: true, grade: true } },
-        topic: { select: { id: true, topicText: true, weekNumber: true } },
-        phase: { select: { id: true, name: true, phaseNumber: true } },
+        topic:        { select: { id: true, topicText: true, weekNumber: true } },
+        phase:        { select: { id: true, name: true, phaseNumber: true } },
       },
       orderBy: { date: 'asc' },
     });

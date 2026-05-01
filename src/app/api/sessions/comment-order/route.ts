@@ -1,9 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { auth } from '@/lib/auth';
-
-// 等級昇順（低い等級 = コメント順が早い）
-const GRADE_ORDER = ['E2a', 'E2b', 'E3a', 'E3b', 'E3c', 'E4', 'E4p', 'E5'];
+import { GRADE_ORDER } from '@/lib/constants';
 
 /**
  * GET /api/sessions/comment-order?sessionId=N
@@ -69,8 +67,9 @@ export async function GET(request: Request) {
     const commenters = allUsers
       .filter(u => u.id !== targetSession.speakerId)
       .sort((a, b) => {
-        const ai = GRADE_ORDER.indexOf(a.grade);
-        const bi = GRADE_ORDER.indexOf(b.grade);
+        const order = GRADE_ORDER as readonly string[];
+        const ai = order.indexOf(a.grade);
+        const bi = order.indexOf(b.grade);
         return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
       });
 

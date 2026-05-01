@@ -13,7 +13,7 @@ import {
   UserMinus, History, MessageSquare,
   Video, AlertTriangle, ChevronRight, Bell, Users, TrendingUp,
 } from 'lucide-react';
-import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
+import { GRADE_LABELS, SESSION_STRUCTURE, formatDateUTC, getTodayStr } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 
@@ -56,23 +56,6 @@ interface PhaseInfo {
   _count: { sessions: number };
 }
 
-/** フェーズごとの進行フロー（静的定義） */
-const PHASE_FLOW: Record<number, { label: string; time: string; detail: string }[]> = {
-  1: [
-    { label: '冒頭',     time: '30秒',    detail: '運営が発話者・主題を告知' },
-    { label: '発話',     time: '5分',     detail: '発話者が主題について話す' },
-    { label: '関心表明', time: '2分',     detail: '聴取者7名が15〜20秒ずつ「関心を持った一点」を述べる' },
-    { label: '締め',     time: '1分30秒', detail: '運営が締めの挨拶、次回の告知' },
-  ],
-  2: [
-    { label: '冒頭',               time: '30秒',     detail: '運営が発話者A・応答者B・主題を告知' },
-    { label: '発話A',              time: '6分',      detail: '発話者Aが主題について話す' },
-    { label: '問いを置くB',        time: '2分',      detail: '応答者Bが自分の中に生まれた問いを場に置く' },
-    { label: 'Aの応答（任意）',    time: '2〜3分',   detail: 'Aが応えたい場合のみ応える' },
-    { label: '聴取者6名の感想（任意）', time: '3〜4分', detail: 'チャットまたは口頭で、任意で感想を残す' },
-    { label: '締め',               time: '30秒〜1分', detail: '運営が締めの挨拶、次回の告知' },
-  ],
-};
 
 function formatTimeAgo(dateStr: string) {
   const d = new Date(dateStr);
@@ -143,7 +126,7 @@ export default function HomePage() {
         fetch('/api/notifications'),
         fetch(`/api/sessions?date=${today}`),
         userId ? fetch(`/api/sessions?speakerId=${userId}`) : Promise.resolve(null),
-        fetch('/api/sessions?status=scheduled'),
+        fetch(`/api/sessions?status=scheduled&after=${today}&limit=3`),
         fetch('/api/phases'),
       ]);
       if (urlRes.ok) { const u = await urlRes.json(); setMeetingUrl(u.url); }
@@ -160,10 +143,7 @@ export default function HomePage() {
       }
       // 次回以降3件（今日より後のスケジュール済みセッション）
       if (scheduledRes.ok) {
-        const allScheduled: SessionData[] = await scheduledRes.json();
-        const upcoming = allScheduled
-          .filter(s => s.date.split('T')[0] > today)
-          .slice(0, 3);
+        const upcoming: SessionData[] = await scheduledRes.json();
         setUpcomingSessions(upcoming);
         // Phase 1 の次回セッションはコメント順を事前取得
         const phase1Upcoming = upcoming.filter(s => s.phase.phaseNumber === 1);
@@ -185,10 +165,7 @@ export default function HomePage() {
     finally { setLoading(false); }
   }
 
-  const formatDate = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return `${d.getUTCMonth()+1}月${d.getUTCDate()}日（${DAY_LABELS[d.getUTCDay()]}）`;
-  };
+  const formatDate = formatDateUTC;
 
   if (loading) return (
     <div className="flex h-[60vh] items-center justify-center">
@@ -201,6 +178,14 @@ export default function HomePage() {
 
   const isPhase1 = todaySession?.phase.phaseNumber === 1;
   const isPhase2Plus = todaySession && todaySession.phase.phaseNumber >= 2;
+
+  // フェーズ進行情報: 進行中フェーズ、なければ直近の予定フェーズ
+  const todayStr = getTodayStr();
+  const displayPhase = phaseInfo.find(ph =>
+    ph.startDate.split('T')[0] <= todayStr && ph.endDate.split('T')[0] >= todayStr
+  ) ?? phaseInfo.find(ph => ph.startDate.split('T')[0] > todayStr);
+  const isActivePhase = displayPhase != null && displayPhase.startDate.split('T')[0] <= todayStr;
+  const phaseFlow = displayPhase ? (SESSION_STRUCTURE[displayPhase.phaseNumber] ?? []) : [];
 
   return (
     <div className="min-h-[calc(100vh-60px)] bg-[#F5F7FA]">
@@ -217,58 +202,49 @@ export default function HomePage() {
         </div>
 
         <div className="space-y-4">
-          {/* ── フェーズ進行情報（現在フェーズのみ） ── */}
-          {(() => {
-            const todayStr = new Date().toISOString().split('T')[0];
-            const activePhase = phaseInfo.find(ph =>
-              ph.startDate.split('T')[0] <= todayStr &&
-              ph.endDate.split('T')[0] >= todayStr
-            );
-            if (!activePhase) return null;
-            const flow = PHASE_FLOW[activePhase.phaseNumber] ?? [];
-            const start = new Date(activePhase.startDate);
-            const end = new Date(activePhase.endDate);
-            const startStr = `${start.getUTCMonth()+1}月${start.getUTCDate()}日`;
-            const endStr = `${end.getUTCMonth()+1}月${end.getUTCDate()}日`;
-            return (
-              <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-                <div className="px-5 py-3.5 border-b border-[#E0E4EF] flex items-center justify-between">
-                  <p className="text-sm font-bold text-[#00135D] flex items-center gap-2">
-                    <TrendingUp className="h-3.5 w-3.5 text-[#0070CC]" />
-                    第{activePhase.phaseNumber}フェーズ · {activePhase.name}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Badge className="bg-[#0070CC] text-white text-[10px] px-2 py-0">進行中</Badge>
-                    <span className="text-[10px] text-muted-foreground">{startStr}〜{endStr}　全{activePhase._count.sessions}回</span>
-                  </div>
+          {/* ── フェーズ進行情報 ── */}
+          {displayPhase && (
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+              <div className="px-5 py-3.5 border-b border-[#E0E4EF] flex items-center justify-between">
+                <p className="text-sm font-bold text-[#00135D] flex items-center gap-2">
+                  <TrendingUp className="h-3.5 w-3.5 text-[#0070CC]" />
+                  第{displayPhase.phaseNumber}フェーズ · {displayPhase.name}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Badge className={`text-white text-[10px] px-2 py-0 ${isActivePhase ? 'bg-[#0070CC]' : 'bg-[#F59E0B]'}`}>
+                    {isActivePhase ? '進行中' : '準備中'}
+                  </Badge>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(displayPhase.startDate).getUTCMonth()+1}月{new Date(displayPhase.startDate).getUTCDate()}日〜{new Date(displayPhase.endDate).getUTCMonth()+1}月{new Date(displayPhase.endDate).getUTCDate()}日　全{displayPhase._count.sessions}回
+                  </span>
                 </div>
-                <div className="p-4 space-y-3">
-                  {activePhase.description && (
-                    <p className="text-xs text-[#3D4252] leading-relaxed">{activePhase.description}</p>
-                  )}
-                  {flow.length > 0 && (
-                    <div>
-                      <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-2">進行フロー</p>
-                      <div className="relative border border-[#E0E4EF] rounded-lg overflow-hidden">
-                        <div className="grid grid-cols-[5rem_3.5rem_1fr] bg-[#F0F2F8] border-b border-[#E0E4EF]">
-                          <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">区分</span>
-                          <span className="px-2 py-1.5 text-[10px] font-bold text-[#3D4252]">時間</span>
-                          <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">内容</span>
-                        </div>
-                        {flow.map((step, i) => (
-                          <div key={i} className={`grid grid-cols-[5rem_3.5rem_1fr] ${i < flow.length-1 ? 'border-b border-[#E0E4EF]' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-[#F8F9FC]'}`}>
-                            <span className="px-2.5 py-2 text-[11px] font-semibold text-[#00135D] leading-snug flex items-center">{step.label}</span>
-                            <span className="px-2 py-2 text-[11px] text-[#0070CC] font-medium leading-snug flex items-center whitespace-nowrap">{step.time}</span>
-                            <span className="px-2.5 py-2 text-[11px] text-[#3D4252] leading-snug flex items-center">{step.detail}</span>
-                          </div>
-                        ))}
+              </div>
+              <div className="p-4 space-y-3">
+                {displayPhase.description && (
+                  <p className="text-xs text-[#3D4252] leading-relaxed">{displayPhase.description}</p>
+                )}
+                {phaseFlow.length > 0 && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground font-semibold uppercase tracking-widest mb-2">進行フロー</p>
+                    <div className="relative border border-[#E0E4EF] rounded-lg overflow-hidden">
+                      <div className="grid grid-cols-[5rem_3.5rem_1fr] bg-[#F0F2F8] border-b border-[#E0E4EF]">
+                        <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">区分</span>
+                        <span className="px-2 py-1.5 text-[10px] font-bold text-[#3D4252]">時間</span>
+                        <span className="px-2.5 py-1.5 text-[10px] font-bold text-[#3D4252]">内容</span>
                       </div>
+                      {phaseFlow.map((step, i) => (
+                        <div key={i} className={`grid grid-cols-[5rem_3.5rem_1fr] ${i < phaseFlow.length-1 ? 'border-b border-[#E0E4EF]' : ''} ${i % 2 === 0 ? 'bg-white' : 'bg-[#F8F9FC]'}`}>
+                          <span className="px-2.5 py-2 text-[11px] font-semibold text-[#00135D] leading-snug flex items-center">{step.label}</span>
+                          <span className="px-2 py-2 text-[11px] text-[#0070CC] font-medium leading-snug flex items-center whitespace-nowrap">{step.duration}</span>
+                          <span className="px-2.5 py-2 text-[11px] text-[#3D4252] leading-snug flex items-center">{step.description}</span>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
-              </Card>
-            );
-          })()}
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
 
           {/* ── 本日の朝礼（コンパクト）＋ 欠席連絡ボックス ── */}
           <div className="grid grid-cols-2 gap-3 items-start">
