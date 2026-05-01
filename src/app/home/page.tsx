@@ -270,168 +270,171 @@ export default function HomePage() {
             );
           })()}
 
-          {/* Today's session */}
-          <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-            <div className="bg-gradient-to-r from-[#00135D] to-[#1E3A8A] px-6 py-4 flex items-center justify-between">
-              <h2 className="text-[15px] font-bold text-white flex items-center gap-2">
-                <CalendarDays className="h-4 w-4" />本日の朝礼
-              </h2>
-              <Link href="/absence">
-                <div className="flex items-center gap-1.5 text-[11px] font-semibold text-white/90 hover:text-white bg-white/15 hover:bg-white/25 px-3 py-1.5 rounded-lg transition-colors cursor-pointer">
-                  <UserMinus className="h-3 w-3" />欠席申告
-                </div>
-              </Link>
-            </div>
-            <CardContent className="p-6">
-              {todaySession ? (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-[#1E3A8A] font-medium">
-                      <Clock className="h-3.5 w-3.5" />
-                      {todaySession.startTime} 〜 {todaySession.endTime}
+          {/* ── 本日の朝礼（コンパクト）＋ 欠席連絡ボックス ── */}
+          <div className="grid grid-cols-2 gap-3 items-start">
+
+            {/* 本日の朝礼 */}
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+              <div className="bg-gradient-to-r from-[#00135D] to-[#1E3A8A] px-3 py-2.5">
+                <h2 className="text-[12px] font-bold text-white flex items-center gap-1.5">
+                  <CalendarDays className="h-3.5 w-3.5" />本日の朝礼
+                </h2>
+              </div>
+              <CardContent className="p-3">
+                {todaySession ? (
+                  <div className="space-y-2.5">
+                    <div className="flex items-center gap-1.5 text-[11px] text-[#1E3A8A] font-medium">
+                      <Clock className="h-3 w-3 shrink-0" />
+                      {todaySession.startTime}〜{todaySession.endTime}
                     </div>
-                    <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-xs">
-                      第{todaySession.phase.phaseNumber}フェーズ · {todaySession.phase.name}
+                    <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[9px] px-1.5 py-0">
+                      第{todaySession.phase.phaseNumber}F · {todaySession.phase.name}
                     </Badge>
+                    <div className="space-y-1.5">
+                      <div>
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">発話者</p>
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <Mic className="h-3 w-3 text-[#0070CC] shrink-0" />
+                          <span className="text-[12px] font-bold text-[#00135D] leading-tight">
+                            {todaySession.speaker?.name ?? '不在（延期）'}
+                          </span>
+                          {todaySession.speaker?.id === session?.user?.id && (
+                            <Badge className="bg-[#00135D] text-white text-[9px] py-0 px-1 shrink-0">あなた</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">主題</p>
+                        <div className="flex items-start gap-1">
+                          <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0 mt-0.5" />
+                          <span className="text-[11px] font-semibold text-[#00135D] leading-snug line-clamp-3">
+                            {todaySession.topic.topicText}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {todaySession.adminNote && (
+                      <div className="flex items-start gap-1 p-2 bg-[#E8F2FB] border border-[#BDD9F5] rounded-lg">
+                        <AlertTriangle className="h-3 w-3 text-[#0070CC] shrink-0 mt-0.5" />
+                        <p className="text-[10px] text-[#3D4252] leading-snug">{todaySession.adminNote}</p>
+                      </div>
+                    )}
                   </div>
+                ) : (
+                  <div className="py-4 text-center">
+                    <CalendarDays className="mx-auto h-7 w-7 text-[#E0E4EF]" />
+                    <p className="mt-2 text-[11px] text-muted-foreground">本日はありません</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-                  {meetingUrl && (
-                    <div className="flex items-center justify-between bg-[#E8F2FB] border border-[#BDD9F5] rounded-lg px-4 py-3">
-                      <div className="flex items-center gap-2 text-sm text-[#0057A0] font-semibold">
-                        <Video className="h-4 w-4 text-[#0070CC]" />Web会議リンク
-                      </div>
-                      <a href={meetingUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs font-bold text-[#0070CC] bg-white px-3 py-1.5 rounded-md border border-[#BDD9F5] no-underline shadow-sm">
-                        参加する →
-                      </a>
+            {/* 欠席連絡ボックス */}
+            <Link href="/absence" className="block h-full">
+              <Card className="border-[#FCCACA] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden h-full hover:bg-[#FEF2F2] transition-colors cursor-pointer">
+                <div className="bg-[#FEF2F2] px-3 py-2.5 border-b border-[#FCCACA]">
+                  <p className="text-[12px] font-bold text-[#C0392B] flex items-center gap-1.5">
+                    <UserMinus className="h-3.5 w-3.5" />欠席・途中退出
+                  </p>
+                </div>
+                <CardContent className="p-3 flex flex-col gap-3">
+                  <div className="flex justify-center pt-1">
+                    <div className="w-12 h-12 rounded-2xl bg-[#FEF2F2] border border-[#FCCACA] flex items-center justify-center">
+                      <UserMinus className="h-6 w-6 text-[#C0392B]" />
                     </div>
-                  )}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed text-center">
+                    参加できない場合は前日<strong className="text-[#C0392B]">23:59</strong>までに申告してください
+                  </p>
+                  <div className="flex items-center justify-center gap-0.5 text-[#C0392B]">
+                    <span className="text-[12px] font-bold">申告する</span>
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-2">本日の主題</p>
-                      <div className="flex items-start gap-2">
-                        <BookOpen className="h-4 w-4 text-[#0070CC] shrink-0 mt-0.5" />
-                        <span className="text-sm font-bold text-[#00135D] leading-snug">{todaySession.topic.topicText}</span>
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-1.5">第{todaySession.topic.weekNumber}週テーマ</p>
-                    </div>
-                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-2">本日の発話者</p>
-                      <div className="flex items-center gap-2">
-                        <Mic className="h-4 w-4 text-[#0070CC] shrink-0" />
-                        <span className="text-sm font-bold text-[#00135D]">
-                          {todaySession.speaker?.name ?? '不在（延期）'}
-                        </span>
-                        {todaySession.speaker?.id === session?.user?.id && (
-                          <Badge className="bg-[#00135D] text-white text-[10px] py-0 px-1.5">あなた</Badge>
+          {/* ── Web会議リンク（フルwidth） ── */}
+          {meetingUrl && todaySession && (
+            <div className="flex items-center justify-between bg-[#E8F2FB] border border-[#BDD9F5] rounded-xl px-4 py-3 shadow-[0_2px_8px_rgba(0,19,93,0.05)]">
+              <div className="flex items-center gap-2 text-sm text-[#0057A0] font-semibold">
+                <Video className="h-4 w-4 text-[#0070CC]" />Web会議リンク
+              </div>
+              <a href={meetingUrl} target="_blank" rel="noopener noreferrer"
+                className="text-xs font-bold text-[#0070CC] bg-white px-3 py-1.5 rounded-lg border border-[#BDD9F5] no-underline shadow-sm hover:bg-[#E8F2FB] transition-colors">
+                参加する →
+              </a>
+            </div>
+          )}
+
+          {/* ── Phase 1: コメント順（フルwidth） ── */}
+          {isPhase1 && commentOrder.length > 0 && (
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#E0E4EF]">
+                <p className="text-xs font-bold text-[#00135D] flex items-center gap-1.5">
+                  <MessageSquare className="h-3.5 w-3.5 text-[#0070CC]" />コメント順（発話者以外全員）
+                </p>
+              </div>
+              <CardContent className="p-4">
+                <div className="flex flex-col gap-2">
+                  {commentOrder.map(c => {
+                    const isInactive = c.status === 'absent' || c.status === 'unspoken';
+                    const isMe = c.id === session?.user?.id;
+                    return (
+                      <div key={c.id} className={`flex items-center gap-2.5 transition-opacity ${isInactive ? 'opacity-40' : ''}`}>
+                        {c.commentPosition !== null ? (
+                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${isMe ? 'bg-[#0070CC] text-white' : 'bg-[#00135D] text-white'}`}>
+                            {c.commentPosition}
+                          </span>
+                        ) : (
+                          <span className="w-6 h-6 rounded-full bg-[#E0E4EF] flex items-center justify-center shrink-0">
+                            <span className="text-[10px] text-muted-foreground font-bold">–</span>
+                          </span>
+                        )}
+                        <span className={`text-sm font-semibold ${isMe ? 'text-[#0070CC]' : 'text-[#1A1D23]'}`}>{c.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</span>
+                        {isMe && <Badge className="bg-[#0070CC] text-white text-[10px] py-0 px-1.5">あなた</Badge>}
+                        {c.status !== 'present' && (
+                          <Badge className={`text-[10px] py-0 px-1.5 ${c.status === 'absent' ? 'bg-[#FEF2F2] text-[#C0392B] border border-[#FCCACA]' : 'bg-[#F8F9FC] text-muted-foreground border border-[#E0E4EF]'}`}>
+                            {STATUS_LABEL[c.status] ?? c.status}
+                          </Badge>
                         )}
                       </div>
-                      <p className="text-[10px] text-muted-foreground mt-1.5">
-                        {todaySession.speaker ? (GRADE_LABELS[todaySession.speaker.grade] || todaySession.speaker.grade) : ''}
-                      </p>
-                    </div>
-                  </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-3">※ 欠席・聴講のみの方は自動的にスキップされます。30秒ごとに自動更新。</p>
+              </CardContent>
+            </Card>
+          )}
 
-                  {/* ── Phase 1: コメント順 ── */}
-                  {isPhase1 && commentOrder.length > 0 && (
-                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-3 flex items-center gap-1.5">
-                        <MessageSquare className="h-3 w-3" />コメント順（発話者以外全員）
-                      </p>
-                      <div className="flex flex-col gap-2">
-                        {commentOrder.map(c => {
-                          const isInactive = c.status === 'absent' || c.status === 'unspoken';
-                          const isMe = c.id === session?.user?.id;
-                          return (
-                            <div
-                              key={c.id}
-                              className={`flex items-center gap-2.5 transition-opacity ${isInactive ? 'opacity-40' : ''}`}
-                            >
-                              {/* 順番バッジ */}
-                              {c.commentPosition !== null ? (
-                                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${
-                                  isMe
-                                    ? 'bg-[#0070CC] text-white'
-                                    : 'bg-[#00135D] text-white'
-                                }`}>
-                                  {c.commentPosition}
-                                </span>
-                              ) : (
-                                <span className="w-6 h-6 rounded-full bg-[#E0E4EF] flex items-center justify-center shrink-0">
-                                  <span className="text-[10px] text-muted-foreground font-bold">–</span>
-                                </span>
-                              )}
-                              {/* 名前 */}
-                              <span className={`text-sm font-semibold ${isMe ? 'text-[#0070CC]' : 'text-[#1A1D23]'}`}>
-                                {c.name}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground">
-                                {GRADE_LABELS[c.grade] || c.grade}
-                              </span>
-                              {isMe && (
-                                <Badge className="bg-[#0070CC] text-white text-[10px] py-0 px-1.5">あなた</Badge>
-                              )}
-                              {c.status !== 'present' && (
-                                <Badge className={`text-[10px] py-0 px-1.5 ${
-                                  c.status === 'absent'
-                                    ? 'bg-[#FEF2F2] text-[#C0392B] border border-[#FCCACA]'
-                                    : 'bg-[#F8F9FC] text-muted-foreground border border-[#E0E4EF]'
-                                }`}>
-                                  {STATUS_LABEL[c.status] ?? c.status}
-                                </Badge>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
-                        ※ 欠席・聴講のみの方は自動的にスキップされます。30秒ごとに自動更新。
-                      </p>
-                    </div>
-                  )}
-
-                  {/* ── Phase 2+: 本日の応答者 ── */}
-                  {isPhase2Plus && todaySession.commentators && todaySession.commentators.length > 0 && (
-                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-2.5 flex items-center gap-1.5">
-                        <Users className="h-3 w-3" />本日の応答者
-                      </p>
-                      <div className="flex flex-wrap gap-4">
-                        {todaySession.commentators.map((c, i) => (
-                          <div key={c.id} className="flex items-center gap-2">
-                            <span className="w-6 h-6 rounded-full bg-[#00135D] flex items-center justify-center text-[11px] font-bold text-white shrink-0">{i+1}</span>
-                            <div>
-                              <p className="text-sm font-semibold text-[#1A1D23] leading-tight">{c.name}</p>
-                              <p className="text-[10px] text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</p>
-                            </div>
-                            {c.id === session?.user?.id && (
-                              <Badge className="bg-[#0070CC] text-white text-[10px] py-0 px-1.5">あなた</Badge>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {todaySession.adminNote && (
-                    <div className="flex items-start gap-2 p-3 bg-[#E8F2FB] border border-[#BDD9F5] rounded-lg">
-                      <AlertTriangle className="h-4 w-4 text-[#0070CC] shrink-0 mt-0.5" />
+          {/* ── Phase 2+: 本日の応答者（フルwidth） ── */}
+          {isPhase2Plus && todaySession?.commentators && todaySession.commentators.length > 0 && (
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#E0E4EF]">
+                <p className="text-xs font-bold text-[#00135D] flex items-center gap-1.5">
+                  <Users className="h-3.5 w-3.5 text-[#0070CC]" />本日の応答者
+                </p>
+              </div>
+              <CardContent className="p-4">
+                <div className="flex flex-wrap gap-4">
+                  {todaySession.commentators.map((c, i) => (
+                    <div key={c.id} className="flex items-center gap-2">
+                      <span className="w-6 h-6 rounded-full bg-[#00135D] flex items-center justify-center text-[11px] font-bold text-white shrink-0">{i+1}</span>
                       <div>
-                        <p className="text-xs font-semibold text-[#0070CC]">システム通知</p>
-                        <p className="text-xs text-[#3D4252] mt-0.5">{todaySession.adminNote}</p>
+                        <p className="text-sm font-semibold text-[#1A1D23] leading-tight">{c.name}</p>
+                        <p className="text-[10px] text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</p>
                       </div>
+                      {c.id === session?.user?.id && (
+                        <Badge className="bg-[#0070CC] text-white text-[10px] py-0 px-1.5">あなた</Badge>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
-              ) : (
-                <div className="text-center py-8">
-                  <CalendarDays className="mx-auto h-10 w-10 text-[#E0E4EF]" />
-                  <p className="mt-3 text-sm text-muted-foreground">本日の朝礼はありません</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Timer（常時表示） */}
           <SpeechTimer defaultSeconds={180} />
