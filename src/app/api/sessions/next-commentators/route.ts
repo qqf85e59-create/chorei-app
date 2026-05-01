@@ -45,21 +45,18 @@ export async function GET() {
       next.speakerId &&
       !next.commentatorsPreset // Skip if already preset
     ) {
-      // [4] Use transaction for exclusive access to prevent race conditions
-      await prisma.$transaction(async (tx) => {
-        // Re-check inside transaction (another request may have preset already)
-        const locked = await tx.session.findUnique({
-          where: { id: next!.id },
-          select: { commentatorsPreset: true },
-        });
-        if (locked && !locked.commentatorsPreset) {
-          await reselectCommentators(next!.id, tx);
-          await tx.session.update({
-            where: { id: next!.id },
-            data: { commentatorsPreset: true },
-          });
-        }
+      // Re-check before writing (optimistic concurrency — commentatorsPreset acts as a guard)
+      const locked = await prisma.session.findUnique({
+        where: { id: next.id },
+        select: { commentatorsPreset: true },
       });
+      if (locked && !locked.commentatorsPreset) {
+        await reselectCommentators(next.id);
+        await prisma.session.update({
+          where: { id: next.id },
+          data: { commentatorsPreset: true },
+        });
+      }
 
       // Re-fetch with updated commentators
       next = await prisma.session.findUnique({

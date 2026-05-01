@@ -4,8 +4,6 @@ import { auth } from '@/lib/auth';
 import { adjustForAbsence, canSelfCancel, reverseCascadeSpeakerShift } from '@/lib/absence-logic';
 
 // POST /api/absence - Create an absence request (+ auto-adjust schedule)
-// [3] Wrapped in prisma.$transaction for atomicity
-// [5/6] Stores originalSpeaker and previousAttendanceStatus snapshots
 export async function POST(request: Request) {
   try {
     const session = await auth();
@@ -16,6 +14,10 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { sessionId, type, note } = body;
 
+    if (!sessionId || !type) {
+      return NextResponse.json({ error: 'sessionId と type は必須です' }, { status: 400 });
+    }
+
     const targetSession = await prisma.session.findUnique({
       where: { id: sessionId },
     });
@@ -23,64 +25,71 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'セッションが見つかりません' }, { status: 404 });
     }
 
-    // [3] All operations in a single transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // [5] Snapshot: was this user the speaker?
-      const isSpeaker = targetSession.speakerId === session.user.id;
+    const userId = session.user.id;
+    const isSpeaker = targetSession.speakerId === userId;
 
-      // [6] Snapshot: current attendance status (if exists)
-      const existingAttendance = await tx.attendance.findUnique({
-        where: { sessionId_userId: { sessionId, userId: session.user.id } },
-      });
-      const prevStatus = existingAttendance?.status ?? null;
+    // Snapshot: current attendance status before this request
+    const existingAttendance = await prisma.attendance.findUnique({
+      where: { sessionId_userId: { sessionId, userId } },
+    });
+    const prevStatus = existingAttendance?.status ?? null;
 
-      // Disallow duplicate absence request for same user/session
-      const existing = await tx.absenceRequest.findFirst({
-        where: { sessionId, userId: session.user.id },
-      });
-
-      let absenceRequest;
-      if (existing) {
-        absenceRequest = await tx.absenceRequest.update({
-          where: { id: existing.id },
-          data: {
-            type,
-            note: note || null,
-            requestedAt: new Date(),
-            originalSpeaker: isSpeaker,
-            previousAttendanceStatus: prevStatus,
-          },
-        });
-      } else {
-        absenceRequest = await tx.absenceRequest.create({
-          data: {
-            userId: session.user.id,
-            sessionId,
-            type,
-            note: note || null,
-            originalSpeaker: isSpeaker,
-            previousAttendanceStatus: prevStatus,
-          },
-        });
-      }
-
-      // Attendance mirror
-      const attStatus =
-        type === 'absent' ? 'absent' : type === 'unspoken' ? 'unspoken' : 'left_early';
-      await tx.attendance.upsert({
-        where: { sessionId_userId: { sessionId, userId: session.user.id } },
-        update: { status: attStatus, reportedAt: new Date() },
-        create: { sessionId, userId: session.user.id, status: attStatus, reportedAt: new Date() },
-      });
-
-      // Auto-adjustment (full phase, both speaker/commentator, minimum attendance enforcement)
-      const report = await adjustForAbsence(sessionId, session.user.id, tx);
-
-      return { absenceRequest, report };
+    // Create or update absence request (idempotent: update if already exists)
+    const existing = await prisma.absenceRequest.findFirst({
+      where: { sessionId, userId },
     });
 
+    let absenceRequest;
+    if (existing) {
+      absenceRequest = await prisma.absenceRequest.update({
+        where: { id: existing.id },
+        data: {
+          type,
+          note: note || null,
+          requestedAt: new Date(),
+          originalSpeaker: isSpeaker,
+          previousAttendanceStatus: prevStatus,
+        },
+      });
+    } else {
+      absenceRequest = await prisma.absenceRequest.create({
+        data: {
+          userId,
+          sessionId,
+          type,
+          note: note || null,
+          originalSpeaker: isSpeaker,
+          previousAttendanceStatus: prevStatus,
+        },
+      });
+    }
+
+    // Mirror to Attendance table
+    const attStatus =
+      type === 'absent' ? 'absent' : type === 'unspoken' ? 'unspoken' : 'left_early';
+    await prisma.attendance.upsert({
+      where: { sessionId_userId: { sessionId, userId } },
+      update: { status: attStatus, reportedAt: new Date() },
+      create: { sessionId, userId, status: attStatus, reportedAt: new Date() },
+    });
+
+    // Auto-adjustment (cascade shift, re-select commentators, minimum attendance check)
+    // Errors here are logged but do not block the response — the absence itself is already saved.
+    let report;
+    try {
+      report = await adjustForAbsence(sessionId, userId);
+    } catch (adjustErr) {
+      console.error('[POST /api/absence] adjustForAbsence error:', adjustErr);
+      report = {
+        speakerCascaded: false,
+        commentatorReassigned: false,
+        sessionCancelled: false,
+        reasons: [],
+      };
+    }
+
     return NextResponse.json(
-      { request: result.absenceRequest, adjustment: result.report },
+      { request: absenceRequest, adjustment: report },
       { status: 201 }
     );
   } catch (err) {
@@ -134,8 +143,6 @@ export async function GET(request: Request) {
 }
 
 // DELETE /api/absence?id=xxx - Self-cancel absence declaration before previous day 23:59 JST
-// [5] Reverse cascade shift if original speaker
-// [6] Restore previous attendance status
 export async function DELETE(request: Request) {
   try {
     const session = await auth();
@@ -166,7 +173,6 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'この操作は許可されていません' }, { status: 403 });
     }
 
-    // Cutoff: previous day 23:59:59 JST of session date (admins can override)
     if (userRole !== 'admin' && !canSelfCancel(req.session.date)) {
       return NextResponse.json(
         { error: '取消し可能期限（前日23:59）を過ぎています。運営にご連絡ください。' },
@@ -176,22 +182,20 @@ export async function DELETE(request: Request) {
 
     let cascadeReversed = false;
 
-    await prisma.$transaction(async (tx) => {
-      // [5] Reverse cascade shift if user was the original speaker
-      if (req.originalSpeaker) {
-        await reverseCascadeSpeakerShift(req.sessionId, req.userId, tx);
-        cascadeReversed = true;
-      }
+    // Reverse cascade shift if user was the original speaker
+    if (req.originalSpeaker) {
+      await reverseCascadeSpeakerShift(req.sessionId, req.userId);
+      cascadeReversed = true;
+    }
 
-      // Delete the absence request
-      await tx.absenceRequest.delete({ where: { id } });
+    // Delete the absence request
+    await prisma.absenceRequest.delete({ where: { id } });
 
-      // [6] Restore attendance status from snapshot
-      const restoreStatus = req.previousAttendanceStatus || 'present';
-      await tx.attendance.updateMany({
-        where: { sessionId: req.sessionId, userId: req.userId },
-        data: { status: restoreStatus, reportedAt: new Date() },
-      });
+    // Restore attendance status from snapshot
+    const restoreStatus = req.previousAttendanceStatus || 'present';
+    await prisma.attendance.updateMany({
+      where: { sessionId: req.sessionId, userId: req.userId },
+      data: { status: restoreStatus, reportedAt: new Date() },
     });
 
     return NextResponse.json({
