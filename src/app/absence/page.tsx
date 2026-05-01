@@ -104,15 +104,18 @@ export default function AbsencePage() {
           note: note || null,
         }),
       });
-      if (!res.ok) throw new Error();
       const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || '申告の送信に失敗しました。もう一度お試しください。');
+        return;
+      }
       if (data.adjustment?.reasons?.length > 0) {
         setAdjustmentMessage(data.adjustment.reasons.join(' / '));
       }
       setSubmitted(true);
       fetchAll();
     } catch {
-      setError('申告の送信に失敗しました。もう一度お試しください。');
+      setError('通信エラーが発生しました。ネットワークを確認してください。');
     }
   }
 

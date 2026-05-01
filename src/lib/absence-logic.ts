@@ -31,15 +31,15 @@ async function getPhaseNumber(phaseId: number, tx: TxClient = prisma): Promise<n
  * for a given session.
  */
 export async function getUnavailableUserIds(sessionId: number, tx: TxClient = prisma): Promise<Set<string>> {
-  const [attendances, requests] = await Promise.all([
-    tx.attendance.findMany({
-      where: {
-        sessionId,
-        status: { in: ['absent', 'left_early', 'unspoken'] },
-      },
-    }),
-    tx.absenceRequest.findMany({ where: { sessionId } }),
-  ]);
+  // NOTE: Sequential queries — Prisma interactive transactions do not support
+  // concurrent queries on the same transaction client (single connection).
+  const attendances = await tx.attendance.findMany({
+    where: {
+      sessionId,
+      status: { in: ['absent', 'left_early', 'unspoken'] },
+    },
+  });
+  const requests = await tx.absenceRequest.findMany({ where: { sessionId } });
   return new Set<string>([
     ...attendances.map((a) => a.userId),
     ...requests.map((r) => r.userId),
