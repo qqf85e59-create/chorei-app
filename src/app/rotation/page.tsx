@@ -17,7 +17,7 @@ import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 interface SessionData {
   id: number; date: string; startTime: string; endTime: string;
   status: string; adminNote: string | null; roundNumber: number; weekNumber: number;
-  speaker: { id: string; name: string; grade: string };
+  speaker: { id: string; name: string; grade: string } | null;
   topic: { id: number; topicText: string; weekNumber: number };
   phase: { id: number; name: string; phaseNumber: number };
 }
@@ -50,7 +50,7 @@ export default function RotationPage() {
 
   function openEdit(s: SessionData) {
     setEditSession(s);
-    setEditForm({ speakerId:s.speaker.id, topicId:String(s.topic.id), startTime:s.startTime, endTime:s.endTime, status:s.status, adminNote:s.adminNote||'' });
+    setEditForm({ speakerId:s.speaker?.id ?? '', topicId:String(s.topic.id), startTime:s.startTime, endTime:s.endTime, status:s.status, adminNote:s.adminNote||'' });
   }
   async function saveEdit() {
     if (!editSession) return;
@@ -68,10 +68,20 @@ export default function RotationPage() {
   }
 
   const filtered = sessions.filter(s => {
-    if (filterSpeaker !== 'all' && s.speaker.id !== filterSpeaker) return false;
+    if (filterSpeaker !== 'all' && s.speaker?.id !== filterSpeaker) return false;
     if (filterRound !== 'all' && s.roundNumber !== parseInt(filterRound)) return false;
     return true;
   });
+
+  // Warn admin about consecutive same-speaker sessions
+  const dupIds = new Set<number>();
+  for (let i = 1; i < filtered.length; i++) {
+    const prev = filtered[i - 1], curr = filtered[i];
+    if (prev.speaker && curr.speaker && prev.speaker.id === curr.speaker.id
+        && prev.status === 'scheduled' && curr.status === 'scheduled') {
+      dupIds.add(prev.id); dupIds.add(curr.id);
+    }
+  }
 
   const fmtDate = (ds: string) => { const d = new Date(ds); return `${d.getMonth()+1}/${d.getDate()}（${DAY_LABELS[d.getDay()]}）`; };
 
@@ -149,8 +159,13 @@ export default function RotationPage() {
                     <td className="px-4 py-3">
                       <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-[#E8F2FB] text-[#0070CC] border border-[#BDD9F5]">{s.roundNumber}巡目</span>
                     </td>
-                    <td className="px-4 py-3 text-sm font-semibold text-[#1A1D23]">{s.speaker.name}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{GRADE_LABELS[s.speaker.grade] || s.speaker.grade}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-[#1A1D23]">
+                      <span className={dupIds.has(s.id) ? 'text-[#C0392B]' : ''}>
+                        {s.speaker?.name ?? '（未定）'}
+                      </span>
+                      {dupIds.has(s.id) && <span className="ml-1 text-[10px] text-[#C0392B]">⚠連続</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{s.speaker ? (GRADE_LABELS[s.speaker.grade] || s.speaker.grade) : ''}</td>
                     <td className="px-4 py-3 text-xs text-[#3D4252] max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{s.topic.topicText}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${statusStyle[s.status] || statusStyle.scheduled}`}>{statusLabel[s.status] || s.status}</span>

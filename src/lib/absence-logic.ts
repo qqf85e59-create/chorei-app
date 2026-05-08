@@ -287,10 +287,16 @@ export async function adjustForAbsence(
     await cascadeSpeakerShift(sessionId, absentUserId, tx);
     report.speakerCascaded = true;
     report.reasons.push('発話者不在のため後続セッションを繰り上げ、末尾に新枠を追加');
+    // Phase 2/3: the incoming speaker may already be a commentator → re-select
+    if (phaseNumber !== 1) {
+      await reselectCommentators(sessionId, tx);
+      report.commentatorReassigned = true;
+      report.reasons.push('発話者変更に伴い応答者を再抽選');
+    }
   }
 
-  // 2) Commentator absence in Phase 2/3: re-select to backfill
-  if (!isSpeaker && isCommentator && phaseNumber !== 1) {
+  // 2) Non-speaker absence in Phase 2/3: re-select to backfill regardless of commentator status
+  if (!isSpeaker && phaseNumber !== 1) {
     await reselectCommentators(sessionId, tx);
     report.commentatorReassigned = true;
     report.reasons.push('応答者不在のため代替応答者を再抽選');

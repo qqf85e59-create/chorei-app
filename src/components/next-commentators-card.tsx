@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+
+const POLL_INTERVAL = 30_000;
 import {
   Card,
   CardContent,
@@ -42,9 +44,14 @@ export function NextCommentatorsCard() {
   const [data, setData] = useState<NextCommentatorsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetchData();
+    timerRef.current = setInterval(fetchData, POLL_INTERVAL);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
   async function fetchData() {

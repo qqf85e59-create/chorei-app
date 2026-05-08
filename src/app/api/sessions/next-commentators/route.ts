@@ -38,11 +38,11 @@ export async function GET() {
       return NextResponse.json({ session: null });
     }
 
-    // [4] If Phase 2/3 and commentators are insufficient AND not yet preset, auto-generate
+    // [4] If Phase 2/3 and commentators are insufficient AND not yet preset, auto-generate.
+    // Runs even when speakerId is null (speaker cascade removed them) so attendees can still be assigned.
     if (
       next.phase.phaseNumber !== 1 &&
       next.commentators.length < PHASE2_3_MIN_COMMENTATORS &&
-      next.speakerId &&
       !next.commentatorsPreset // Skip if already preset
     ) {
       // Re-check before writing (optimistic concurrency — commentatorsPreset acts as a guard)

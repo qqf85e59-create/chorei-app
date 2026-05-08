@@ -106,7 +106,11 @@ export default function HomePage() {
     if (status === 'unauthenticated') { router.push('/login'); return; }
     const hasConfirmed = localStorage.getItem('grandRuleConfirmed');
     if (!hasConfirmed) { router.push('/grand-rule'); return; }
-    if (session?.user) fetchData();
+    if (!session?.user) return;
+    fetchData();
+    const pollTimer = setInterval(fetchData, 30_000);
+    return () => clearInterval(pollTimer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, session, router]);
 
   // Phase 1 のセッションが確定したらコメント順を取得 + 30s ポーリング
@@ -331,8 +335,8 @@ export default function HomePage() {
             </Link>
           </div>
 
-          {/* ── Web会議リンク（フルwidth） ── */}
-          {meetingUrl && todaySession && (
+          {/* ── Web会議リンク（常時表示） ── */}
+          {meetingUrl && (
             <div className="flex items-center justify-between bg-[#E8F2FB] border border-[#BDD9F5] rounded-xl px-4 py-3 shadow-[0_2px_8px_rgba(0,19,93,0.05)]">
               <div className="flex items-center gap-2 text-sm text-[#0057A0] font-semibold">
                 <Video className="h-4 w-4 text-[#0070CC]" />Web会議リンク
