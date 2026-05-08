@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -25,6 +25,7 @@ import {
   MessageSquare,
   Video,
   AlertTriangle,
+  ExternalLink,
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
@@ -43,6 +44,8 @@ interface SessionData {
   commentators?: { id: string; name: string; grade: string }[];
 }
 
+const POLL_INTERVAL = 30_000; // 30 seconds
+
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -51,6 +54,52 @@ export default function HomePage() {
   const [pastSpeaking, setPastSpeaking] = useState<SessionData[]>([]);
   const [meetingUrl, setMeetingUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchData = useCallback(async () => {
+    if (!session?.user) return;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+
+      const [urlRes, sessionsRes, allRes] = await Promise.all([
+        fetch('/api/config/meeting-url'),
+        fetch(`/api/sessions?date=${today}`),
+        fetch('/api/sessions'),
+      ]);
+
+      if (urlRes.ok) {
+        const urlData = await urlRes.json();
+        setMeetingUrl(urlData.url ?? '');
+      }
+
+      const sessions = await sessionsRes.json();
+      setTodaySession(sessions.length > 0 ? sessions[0] : null);
+
+      const allSessions: SessionData[] = await allRes.json();
+      const userId = session.user.id;
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+
+      const futureSpeaking = allSessions.filter(
+        (s) =>
+          s.speaker?.id === userId &&
+          new Date(s.date) > todayDate &&
+          s.status === 'scheduled'
+      );
+      setNextSpeaking(futureSpeaking.length > 0 ? futureSpeaking[0] : null);
+
+      const pastSpeakingAll = allSessions.filter(
+        (s) => s.speaker?.id === userId && new Date(s.date) <= todayDate
+      );
+      setPastSpeaking(pastSpeakingAll.slice(-3).reverse());
+      setLastUpdated(new Date());
+    } catch (error) {
+      console.error('Failed to fetch data:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [session]);
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -58,7 +107,6 @@ export default function HomePage() {
       return;
     }
 
-    // Check grand rule confirmation
     const hasConfirmed = localStorage.getItem('grandRuleConfirmed');
     if (!hasConfirmed) {
       router.push('/grand-rule');
@@ -67,61 +115,13 @@ export default function HomePage() {
 
     if (session?.user) {
       fetchData();
+      timerRef.current = setInterval(fetchData, POLL_INTERVAL);
     }
-  }, [status, session, router]);
 
-  async function fetchData() {
-    try {
-      const today = new Date().toISOString().split('T')[0];
-
-      // Fetch meeting URL
-      const urlRes = await fetch('/api/config/meeting-url');
-      if (urlRes.ok) {
-        const urlData = await urlRes.json();
-        setMeetingUrl(urlData.url);
-      }
-
-      // Fetch today's session
-      const sessionsRes = await fetch(`/api/sessions?date=${today}`);
-      const sessions = await sessionsRes.json();
-      if (sessions.length > 0) {
-        setTodaySession(sessions[0]);
-      }
-
-      // Fetch all sessions to find next speaking and past speaking
-      const allRes = await fetch('/api/sessions');
-      const allSessions: SessionData[] = await allRes.json();
-      const userId = session?.user?.id;
-
-      if (userId) {
-        const todayDate = new Date();
-        todayDate.setHours(0, 0, 0, 0);
-
-        // Next speaking assignment
-        const futureSpeaking = allSessions.filter(
-          (s) =>
-            s.speaker?.id === userId &&
-            new Date(s.date) > todayDate &&
-            s.status === 'scheduled'
-        );
-        if (futureSpeaking.length > 0) {
-          setNextSpeaking(futureSpeaking[0]);
-        }
-
-        // Past speaking (last 3)
-        const pastSpeakingAll = allSessions.filter(
-          (s) =>
-            s.speaker?.id === userId &&
-            new Date(s.date) <= todayDate
-        );
-        setPastSpeaking(pastSpeakingAll.slice(-3).reverse());
-      }
-    } catch (error) {
-      console.error('Failed to fetch data:', error);
-    } finally {
-      setLoading(false);
-    }
-  }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [status, session, router, fetchData]);
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -144,20 +144,56 @@ export default function HomePage() {
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6 animate-fade-in">
       {/* Welcome */}
       <div className="mb-6">
-        <h1 className="text-2xl font-bold text-brand-primary">
-          おはようございます、{session?.user?.name}さん
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          {new Date().toLocaleDateString('ja-JP', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            weekday: 'long',
-          })}
-        </p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-brand-primary">
+              おはようございます、{session?.user?.name}さん
+            </h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              {new Date().toLocaleDateString('ja-JP', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric',
+                weekday: 'long',
+              })}
+            </p>
+          </div>
+          {lastUpdated && (
+            <p className="text-xs text-muted-foreground mt-1 shrink-0">
+              {lastUpdated.getHours().toString().padStart(2, '0')}:
+              {lastUpdated.getMinutes().toString().padStart(2, '0')} 更新
+            </p>
+          )}
+        </div>
       </div>
 
       <div className="space-y-6">
+        {/* Meeting URL — always visible */}
+        {meetingUrl && (
+          <div className="flex items-center justify-between rounded-xl border-2 border-blue-200 bg-blue-50 px-5 py-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100">
+                <Video className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-bold text-blue-800">Web会議リンク</p>
+                <p className="text-xs text-blue-600 truncate max-w-[200px] sm:max-w-none">
+                  {meetingUrl}
+                </p>
+              </div>
+            </div>
+            <a
+              href={meetingUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-blue-700 transition-colors shrink-0"
+            >
+              <ExternalLink className="h-4 w-4" />
+              参加する
+            </a>
+          </div>
+        )}
+
         {/* Today's Session */}
         <Card className="border-brand-border shadow-md overflow-hidden">
           <div className="bg-gradient-to-r from-brand-primary to-brand-secondary px-6 py-4">
@@ -180,23 +216,6 @@ export default function HomePage() {
                     第{todaySession.phase.phaseNumber}フェーズ
                   </Badge>
                 </div>
-
-                {meetingUrl && (
-                  <div className="flex items-center justify-between bg-blue-50/50 p-3 rounded-lg border border-blue-100 mb-2">
-                    <div className="flex items-center gap-2 text-sm text-blue-700">
-                      <Video className="h-4 w-4" />
-                      <span className="font-semibold">Web会議リンク</span>
-                    </div>
-                    <a
-                      href={meetingUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline px-2 py-1 bg-white rounded shadow-sm border border-blue-200"
-                    >
-                      ミーティングに参加
-                    </a>
-                  </div>
-                )}
 
                 <div className="rounded-lg border border-brand-border bg-brand-bg/50 p-4">
                   <p className="text-xs text-muted-foreground mb-1">主題</p>

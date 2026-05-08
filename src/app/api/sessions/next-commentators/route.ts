@@ -36,11 +36,11 @@ export async function GET() {
     return NextResponse.json({ session: null });
   }
 
-  // If Phase 2/3 and commentators are empty, auto-generate as tentative (暫定)
+  // If Phase 2/3 and commentators are below minimum, auto-generate as tentative (暫定)
+  // Also runs when speakerId is null (cascade removed speaker) so attendees can still be assigned
   if (
     next.phase.phaseNumber !== 1 &&
-    next.commentators.length < PHASE2_3_MIN_COMMENTATORS &&
-    next.speakerId
+    next.commentators.length < PHASE2_3_MIN_COMMENTATORS
   ) {
     await reselectCommentators(next.id);
     await prisma.session.update({

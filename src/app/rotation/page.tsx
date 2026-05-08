@@ -55,7 +55,7 @@ interface SessionData {
   adminNote: string | null;
   roundNumber: number;
   weekNumber: number;
-  speaker: { id: string; name: string; grade: string };
+  speaker: { id: string; name: string; grade: string } | null;
   topic: { id: number; topicText: string; weekNumber: number };
   phase: { id: number; name: string; phaseNumber: number };
 }
@@ -116,7 +116,7 @@ export default function RotationPage() {
   function openEdit(s: SessionData) {
     setEditSession(s);
     setEditForm({
-      speakerId: s.speaker.id,
+      speakerId: s.speaker?.id ?? '',
       topicId: String(s.topic.id),
       startTime: s.startTime,
       endTime: s.endTime,
@@ -150,11 +150,28 @@ export default function RotationPage() {
   }
 
   const filteredSessions = sessions.filter((s) => {
-    if (filterSpeaker !== 'all' && s.speaker.id !== filterSpeaker) return false;
+    if (filterSpeaker !== 'all' && s.speaker?.id !== filterSpeaker) return false;
     if (filterRound !== 'all' && s.roundNumber !== parseInt(filterRound))
       return false;
     return true;
   });
+
+  // Detect consecutive same-speaker sessions (warn admin)
+  const duplicateSpeakerIds = new Set<number>();
+  for (let i = 1; i < filteredSessions.length; i++) {
+    const prev = filteredSessions[i - 1];
+    const curr = filteredSessions[i];
+    if (
+      prev.speaker &&
+      curr.speaker &&
+      prev.speaker.id === curr.speaker.id &&
+      prev.status === 'scheduled' &&
+      curr.status === 'scheduled'
+    ) {
+      duplicateSpeakerIds.add(prev.id);
+      duplicateSpeakerIds.add(curr.id);
+    }
+  }
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
@@ -273,10 +290,15 @@ export default function RotationPage() {
                       </Badge>
                     </TableCell>
                     <TableCell className="font-medium">
-                      {s.speaker.name}
+                      <span className={duplicateSpeakerIds.has(s.id) ? 'text-brand-danger font-bold' : ''}>
+                        {s.speaker?.name ?? '（未定）'}
+                      </span>
+                      {duplicateSpeakerIds.has(s.id) && (
+                        <span className="ml-1 text-xs text-brand-danger">⚠️連続</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {GRADE_LABELS[s.speaker.grade] || s.speaker.grade}
+                      {s.speaker ? (GRADE_LABELS[s.speaker.grade] || s.speaker.grade) : ''}
                     </TableCell>
                     <TableCell className="text-sm">
                       {s.topic.topicText}

@@ -44,9 +44,8 @@ export async function getUnavailableUserIds(sessionId: number): Promise<Set<stri
 
 /**
  * Cascade speaker shift when the scheduled speaker is absent:
- *   - Clear speaker on current session
- *   - Pull subsequent speakers forward by 1
- *   - Append a new session at the end for the displaced (absent) speaker
+ *   - Pull subsequent speakers forward by 1 (A→D0, B→D1, …)
+ *   - Place the absent speaker at the last existing slot in the chain
  * Works for any phase where speakerId drives rotation.
  */
 export async function cascadeSpeakerShift(sessionId: number, absentUserId: string) {
@@ -62,71 +61,76 @@ export async function cascadeSpeakerShift(sessionId: number, absentUserId: strin
   });
   if (futureSessions.length === 0) return;
 
-  // 1. Remove speaker from the target (today)
-  await prisma.session.update({
-    where: { id: target.id },
-    data: {
-      speakerId: null,
-      adminNote: target.adminNote
-        ? `${target.adminNote} / 欠席により発表順延`
-        : '欠席により発表順延',
-    },
-  });
+  const absentSpeakerId = futureSessions[0].speakerId; // the absent user (X)
+  const absentTopicId = futureSessions[0].topicId;
 
-  if (futureSessions.length > 1) {
-    // 2. Shift speakerId/topicId forward along the chain
-    let prevSpeakerId = futureSessions[0].speakerId;
-    let prevTopicId = futureSessions[0].topicId;
+  if (futureSessions.length === 1) {
+    // Only this session exists — clear the speaker, create a new slot for X
+    await prisma.session.update({
+      where: { id: target.id },
+      data: {
+        speakerId: null,
+        adminNote: target.adminNote
+          ? `${target.adminNote} / 欠席により発表順延`
+          : '欠席により発表順延',
+      },
+    });
 
-    for (let i = 1; i < futureSessions.length; i++) {
-      const s = futureSessions[i];
-      const currSpeakerId = s.speakerId;
-      const currTopicId = s.topicId;
-
-      await prisma.session.update({
-        where: { id: s.id },
-        data: {
-          speakerId: prevSpeakerId,
-          topicId: prevTopicId,
-          adminNote: s.adminNote ?? '自動順送り（スケジュール再割当）',
-        },
-      });
-
-      prevSpeakerId = currSpeakerId;
-      prevTopicId = currTopicId;
-    }
-
-    // 3. Create a new session at the end for the displaced (absent) speaker
-    const lastSession = futureSessions[futureSessions.length - 1];
     const holidays = await prisma.holiday.findMany({ where: { isActive: true } });
     const holidaySet = new Set(holidays.map((h) => h.date.toISOString().split('T')[0]));
-
-    const nextStartDate = new Date(lastSession.date);
-    nextStartDate.setDate(nextStartDate.getDate() + 1);
-    const nextDates = getSessionDates(nextStartDate, 1, holidaySet);
-
-    if (nextDates.length > 0 && prevSpeakerId) {
-      const newDate = nextDates[0];
-      const weekNum = getWeekNumber(newDate, new Date(futureSessions[0].date));
-
+    const nextStart = new Date(target.date);
+    nextStart.setDate(nextStart.getDate() + 1);
+    const nextDates = getSessionDates(nextStart, 1, holidaySet);
+    if (nextDates.length > 0 && absentSpeakerId) {
       await prisma.session.create({
         data: {
-          date: newDate,
-          phaseId: lastSession.phaseId,
-          weekNumber: weekNum,
-          topicId: prevTopicId,
-          speakerId: prevSpeakerId,
-          startTime: lastSession.startTime,
-          endTime: lastSession.endTime,
+          date: nextDates[0],
+          phaseId: target.phaseId,
+          weekNumber: getWeekNumber(nextDates[0], new Date(target.date)),
+          topicId: absentTopicId,
+          speakerId: absentSpeakerId,
+          startTime: target.startTime,
+          endTime: target.endTime,
           status: 'scheduled',
-          roundNumber: lastSession.roundNumber,
+          roundNumber: target.roundNumber,
           adminNote: '自動順送りによる追加枠',
         },
       });
     }
+    return;
   }
 
-  // Silence unused var warning (absentUserId is reserved for audit/log extension)
+  // Pull everyone forward: futureSessions[i] gets futureSessions[i+1]'s speaker.
+  // The last slot in the chain receives the absent speaker (X), so no one speaks twice.
+  for (let i = 0; i < futureSessions.length - 1; i++) {
+    const next = futureSessions[i + 1];
+    await prisma.session.update({
+      where: { id: futureSessions[i].id },
+      data: {
+        speakerId: next.speakerId,
+        topicId: next.topicId,
+        adminNote:
+          i === 0
+            ? futureSessions[i].adminNote
+              ? `${futureSessions[i].adminNote} / 欠席により発表順延`
+              : '欠席により発表順延'
+            : (futureSessions[i].adminNote ?? '自動順送り（スケジュール再割当）'),
+      },
+    });
+  }
+
+  // Place absent speaker (X) at the tail of the existing chain
+  const last = futureSessions[futureSessions.length - 1];
+  await prisma.session.update({
+    where: { id: last.id },
+    data: {
+      speakerId: absentSpeakerId,
+      topicId: absentTopicId,
+      adminNote: last.adminNote ?? '自動順送りによる末尾追加',
+    },
+  });
+
+  // Silence unused var warning (absentUserId reserved for future audit/log extension)
   void absentUserId;
 }
 
@@ -253,11 +257,17 @@ export async function adjustForAbsence(
   if (isSpeaker) {
     await cascadeSpeakerShift(sessionId, absentUserId);
     report.speakerCascaded = true;
-    report.reasons.push('発話者不在のため後続セッションを繰り上げ、末尾に新枠を追加');
+    report.reasons.push('発話者不在のため後続セッションを繰り上げ、末尾に追加');
+    // Phase 2/3: after cascade the new speaker may overlap existing commentators → re-select
+    if (phaseNumber !== 1) {
+      await reselectCommentators(sessionId);
+      report.commentatorReassigned = true;
+      report.reasons.push('発話者変更に伴い応答者を再抽選');
+    }
   }
 
   // 2) Commentator absence in Phase 2/3: re-select to backfill
-  if (!isSpeaker && isCommentator && phaseNumber !== 1) {
+  if (!isSpeaker && phaseNumber !== 1) {
     await reselectCommentators(sessionId);
     report.commentatorReassigned = true;
     report.reasons.push('応答者不在のため代替応答者を再抽選');
