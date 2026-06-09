@@ -10,7 +10,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // Check participation
     const isParticipant = await prisma.participation.count({ where: { eventId, userId } });
-    if (!isParticipant && session.user.role !== "admin") {
+    const isAdmin = session.user.role === "admin";
+    if (!isParticipant && !isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

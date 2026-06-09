@@ -9,7 +9,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const userId = session.user.id;
 
     const isParticipant = await prisma.participation.count({ where: { eventId, userId } });
-    if (!isParticipant && session.user.role !== 'admin') {
+    const isAdmin = session.user.role === 'admin';
+    if (!isParticipant && !isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -32,7 +33,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const userId = session.user.id;
 
     const isParticipant = await prisma.participation.count({ where: { eventId, userId } });
-    if (!isParticipant && session.user.role !== 'admin') {
+    const isAdmin = session.user.role === 'admin';
+    if (!isParticipant && !isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

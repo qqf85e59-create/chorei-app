@@ -23,7 +23,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // 2) 本人が参加者、またはadminであることを検証
     const isParticipant = await prisma.participation.count({ where: { eventId, userId } });
-    if (!isParticipant && session.user.role !== 'admin') {
+    const isAdmin = session.user.role === 'admin';
+    if (!isParticipant && !isAdmin) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

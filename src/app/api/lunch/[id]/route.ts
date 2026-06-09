@@ -50,7 +50,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: "Event not found" }, { status: 404 });
     }
 
-    if (session.user.role !== 'admin' && event.organizer.email !== session.user.email) {
+    const isAdmin = session.user.role === 'admin';
+    if (!isAdmin && event.organizer.email !== session.user.email) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
