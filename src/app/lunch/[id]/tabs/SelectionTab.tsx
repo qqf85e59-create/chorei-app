@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { User, LunchEvent, Participation } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { Users, UserMinus, RefreshCw } from "lucide-react";
@@ -15,6 +15,14 @@ export default function SelectionTab({ event, activeStaff, previousParticipantId
   const router = useRouter();
   const [excludedIds, setExcludedIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  // 抽選人数（マスター設定。表示ラベル用）
+  const [targetCount, setTargetCount] = useState<number>(3);
+  useEffect(() => {
+    fetch('/api/config/lunch-count')
+      .then(r => (r.ok ? r.json() : null))
+      .then(d => { if (d && typeof d.count === 'number') setTargetCount(d.count); })
+      .catch(() => {});
+  }, []);
 
   const toggleExclude = (id: string) => {
     setExcludedIds(prev => 
@@ -63,7 +71,7 @@ export default function SelectionTab({ event, activeStaff, previousParticipantId
           </div>
 
           <div className="bg-[var(--color-panel)] p-4 rounded border border-[var(--color-accent)]">
-            <p className="text-sm text-[var(--color-primary)] font-medium mb-2">参加スタッフ (4名)</p>
+            <p className="text-sm text-[var(--color-primary)] font-medium mb-2">参加スタッフ ({targetCount}名)</p>
             {currentParticipants.length > 0 ? (
               <ul className="space-y-2">
                 {currentParticipants.map(user => (
