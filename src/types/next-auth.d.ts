@@ -10,6 +10,7 @@ declare module "next-auth" {
       role: string
       grade: string
       lunchStatus: string
+      lunchRole: string
     } & DefaultSession["user"]
   }
 
@@ -18,5 +19,6 @@ declare module "next-auth" {
     role: string
     grade: string
     lunchStatus: string
+    lunchRole: string
   }
 }

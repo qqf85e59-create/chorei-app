@@ -26,6 +26,9 @@ export async function GET() {
           lunchStatus: true,
           choreiStatus: true,
           createdAt: true,
+          lunchParticipations: {
+            include: { event: true }
+          }
         },
         orderBy: { createdAt: 'asc' },
       });

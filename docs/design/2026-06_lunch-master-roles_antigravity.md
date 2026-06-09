@@ -244,9 +244,68 @@
 
 ---
 
-## 付録0: 本セッションで適用済みの即時修正（実装済み）
+## 付録0: 本セッションで適用済みの即時修正（実装済み・antigravity再対応不要）
 
-- **ボタンがホバーで消えるバグの修正（適用済み）**: ランチ系コンポーネントが使う `var(--color-sub)` / `var(--color-panel)` が `globals.css` に未定義で、`hover:bg-[var(--color-sub)]` がホバー時に透明化していた。`src/app/globals.css` の `:root` に `--color-primary/-sub/-accent/-panel` を定義して解消（値は既存ブランド色と一致）。antigravity 側での再対応は不要。
+- **ボタンがホバーで消えるバグの修正**: ランチ系コンポーネントが使う `var(--color-sub)` / `var(--color-panel)` が `globals.css` に未定義で、`hover:bg-[var(--color-sub)]` がホバー時に透明化していた。`src/app/globals.css` の `:root` に `--color-primary/-sub/-accent/-panel` を定義して解消（値は既存ブランド色と一致）。
+- **抽選人数 4→3**: `src/lib/selectionAlgorithm.ts` の `selectCount` 既定値と `src/app/api/lunch/[id]/select/route.ts` の呼び出しを `3` に変更（P3-1 の人数部分は完了）。
+- **当番セレクト廃止／主催者＝ログイン本人**: `NewLunchForm.tsx`（セレクト削除・`{title}`のみ送信）、`lunch/new/page.tsx`（候補取得・交代ロジック削除、`admin`or`lunchRole='organizer'`でガード）、`api/lunch/route.ts` POST（`organizerId = session.user.id`、作成可は admin/organizer）。P3-2 は実装完了。
+- **セッションに `lunchRole` を追加**: `src/lib/auth.ts`（authorize/jwt/session）と `src/types/next-auth.d.ts` に `lunchRole` を追加。
+- 上記後 `npx tsc --noEmit` は EXIT 0。
+
+> なお **P8-2（アンケート未回答者の可視化）は既に実装済み**であることを確認（`SurveyTab.tsx` が母集団に対し「未回答」を表示。選定前は activeStaff、選定後は participants を母集団に切替）。Phase 8 では締切表示（下記 P9-4）と進捗インジケータ（P8-1）が残タスク。
+
+---
+
+## Phase 9: 追加レビュー反映（依頼者が採用した項目）
+
+### P9-1. 同月重複イベントの作成防止
+- **目的**: 同じ月のランチ会を二重作成できてしまう不具合を防ぐ（実データで「June」2件の重複が発生）。
+- **対象**: `src/app/api/lunch/route.ts`(POST)、`NewLunchForm.tsx`（UI警告）。
+- **変更内容**: 作成時、同一 `title`（＝同月）の `status in ['planning','scheduled']` イベントが既存なら **409 を返し作成を拒否**。フォーム側は「今月のランチ会は既に存在します」を表示。
+- **受け入れ条件**: 同月2件目の作成が拒否される。異なる月は作成可。
+- **難易度**: 低 ／ **効果**: 中（重複・混乱の防止）。
+
+### P9-2. タイトルに年を含める
+- **目的**: 来年同月（例: 2027 June）と区別する。
+- **対象**: `src/app/lunch/new/NewLunchForm.tsx`（`generateMonthOptions` の `title`）。
+- **変更内容**: タイトルを `仙台Synergy Bites {YYYY} {Month}` 形式に変更（例: `仙台Synergy Bites 2026 June`）。P9-1 の重複判定キーも年付きタイトルで行う。
+- **受け入れ条件**: 生成タイトルに西暦が入る。年跨ぎで同月名でも別イベントとして扱える。
+- **難易度**: 低 ／ **効果**: 中。
+
+### P9-3. 日程・店舗確定時のアプリ内通知
+- **目的**: 主催者が日程/店舗を確定したら参加者に伝わるようにする。
+- **対象**: `src/app/api/lunch/[id]/route.ts`(PATCH で `confirmedDate`/`restaurantId`/`status='scheduled'` 更新時)、`Notification` モデル（既存）、ホーム/ベル表示（既存）。
+- **変更内容**: 確定の PATCH 時に、その回の `Participation` 参加者全員へ `Notification` を作成（type: `lunch_confirmed`、message: 「{タイトル}の日程が{日付}に確定しました（店舗: {店名}）」）。`linkUrl` に `/lunch/{id}` を付与（[[improvement-design-2026-06]] の Notification.linkUrl 追加と整合）。
+- **受け入れ条件**: 確定後、参加者のお知らせ/ベルに通知が出る。リンクから該当ランチ会へ遷移できる。
+- **難易度**: 低〜中 ／ **効果**: 高（連絡の自動化）。
+
+### P9-4. アンケート締切の表示と督促
+- **目的**: 「月末まで」の締切を明示し、未回答者の督促を促す。
+- **対象**: `src/app/lunch/[id]/tabs/SurveyTab.tsx`、必要なら `LunchEvent` に `surveyDeadline DateTime?` 追加（【要判断】）。
+- **変更内容**:
+  1. アンケートタブ上部に締切日を表示（既定: その回の対象月の月末。または `surveyDeadline` を主催者が設定）。
+  2. 締切超過時の強調表示。未回答者一覧（実装済み）に締切と回答率(n/N)を併記。
+  3. （任意）未回答者へのリマインド導線（P9-3 の通知基盤を流用）。
+- **【要判断】**: 締切を「対象月の月末」固定にするか、主催者が任意設定（`surveyDeadline` カラム追加）にするか。
+- **受け入れ条件**: 締切がアンケート画面に表示され、超過が分かる。
+- **難易度**: 低〜中 ／ **効果**: 中（回答率向上）。
+
+### P9-5. 経費精算の本人リマインド
+- **目的**: 精算忘れ防止。本人が任意タイミングで自分宛のリマインドを設定できる。
+- **対象**: `Settlement` 周辺、`Notification`、新規 `Reminder` モデル or 既存 Notification の予約投稿。
+- **変更内容**:
+  1. 精算（SettlementTab 復活が前提のため【要判断】）または該当ランチ会の画面で、本人が「{日時}にリマインド」を設定。
+  2. 指定日時に本人宛 `Notification` を作成（cron で配信、または `daily-finalize` cron に相乗り）。
+- **【要判断】**: 精算タブは現在無効（スコープ外）。リマインドUIを精算タブに置くなら精算タブ復活が前提。独立した「マイ・リマインド」として置くことも可。配置を要確認。
+- **受け入れ条件**: 設定した日時に本人へ通知が届く。
+- **難易度**: 中 ／ **効果**: 中。
+
+### P9-6. 参加回数の偏り可視化
+- **目的**: 誰が何回参加したかを可視化し、選定の公平性を担保する。
+- **対象**: 参加者管理（`/members`）または専用パネル、`Participation` の集計。
+- **変更内容**: 各ユーザーの「ランチ参加回数（`Participation` 件数, 主催除く）」と「最終参加回」を集計表示。選定アルゴリズムは既に直前回を抑制(weight 0.3)するが、累計の偏りを運用が目視できるようにする。
+- **受け入れ条件**: ユーザー別の参加回数が一覧で確認できる。
+- **難易度**: 低〜中 ／ **効果**: 中（公平性・納得感）。
 
 ---
 

@@ -18,6 +18,7 @@ interface UserData {
   id: string; name: string; grade: string;
   email: string | null; role: string; lunchRole: string; lunchStatus: string; choreiStatus: string; createdAt: string;
   employeeNumber: string | null; kana: string | null; jobCode: string | null; jobTitle: string | null;
+  lunchParticipations?: any[];
 }
 
 interface FormData {
@@ -177,6 +178,11 @@ export default function MembersPage() {
                   <Badge className={user.lunchStatus==='active'?'bg-green-100 text-green-700 border-green-200 text-xs':'bg-gray-100 text-gray-500 border-gray-200 text-xs'}>
                     ランチ:{user.lunchStatus==='active'?'参加':'不参加'}
                   </Badge>
+                  {user.lunchParticipations && (
+                    <Badge variant="outline" className="text-xs bg-white border-gray-200 text-gray-600">
+                      参加: {user.lunchParticipations.filter((p: any) => !p.isOrganizer).length}回
+                    </Badge>
+                  )}
                 </div>
               </div>
             ))}
@@ -187,7 +193,7 @@ export default function MembersPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#F8F9FC] border-b border-[#E0E4EF]">
-                  {['社員番号','名前','フリガナ','職種','等級','権限/主催','参加状態','操作'].map(h => (
+                  {['社員番号','名前','フリガナ','職種','等級','権限/主催','参加状態','ランチ実績','操作'].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-bold text-[#00135D] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -237,6 +243,28 @@ export default function MembersPage() {
                           ランチ:{user.lunchStatus==='active'?'○':'×'}
                         </Badge>
                       </div>
+                    </td>
+                    <td className="px-5 py-3 text-xs">
+                      {(() => {
+                        if (!user.lunchParticipations) return <span className="text-gray-400">—</span>;
+                        const parts = user.lunchParticipations.filter((p: any) => !p.isOrganizer && p.event?.status !== 'planning');
+                        if (parts.length === 0) return <span className="text-gray-400">0回</span>;
+                        
+                        // 確定日または作成日でソートして最新を取得
+                        const sorted = [...parts].sort((a, b) => {
+                          const dateA = new Date(a.event?.confirmedDate || a.event?.createdAt).getTime();
+                          const dateB = new Date(b.event?.confirmedDate || b.event?.createdAt).getTime();
+                          return dateB - dateA;
+                        });
+                        const lastDate = sorted[0].event?.confirmedDate;
+                        
+                        return (
+                          <div className="flex flex-col gap-1">
+                            <span className="font-bold text-[#0070CC]">{parts.length}回</span>
+                            {lastDate && <span className="text-gray-500 text-[10px]">最終: {new Date(lastDate).toLocaleDateString('ja-JP')}</span>}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex gap-1.5 items-center">

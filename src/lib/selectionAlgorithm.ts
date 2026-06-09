@@ -4,7 +4,7 @@ export function selectParticipants(
   activeStaffMembers: User[],    // status: "active" かつ role: 'member'
   excludedThisRound: string[],     // 主催者が当回除外したメンバーのID
   previousParticipantIds: string[], // 直前回の参加者ID
-  selectCount: number = 4
+  selectCount: number = 3
 ): User[] {
   
   // 除外適用後の候補

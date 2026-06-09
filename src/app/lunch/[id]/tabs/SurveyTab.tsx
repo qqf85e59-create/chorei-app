@@ -26,6 +26,32 @@ export default function SurveyTab({ event, role, userId, activeStaff = [], isPar
     ? event.participants.map((p: any) => p.user).filter((u: any) => u.lunchRole === 'participant')
     : activeStaff;
 
+  // Calculate deadline from title (e.g. "仙台Synergy Bites 2026 June")
+  // If we can't parse it, default to the end of the current month
+  let deadlineDate = null;
+  let isDeadlinePassed = false;
+  try {
+    const match = event.title?.match(/(\d{4})\s+([a-zA-Z]+)/i);
+    if (match) {
+      const year = parseInt(match[1]);
+      const monthStr = match[2];
+      const monthIndex = new Date(`${monthStr} 1, 2000`).getMonth();
+      if (!isNaN(monthIndex)) {
+        // Last day of the parsed month
+        deadlineDate = new Date(year, monthIndex + 1, 0);
+      }
+    }
+    if (!deadlineDate) {
+      const now = new Date();
+      deadlineDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    }
+    // Set deadline time to 23:59:59
+    deadlineDate.setHours(23, 59, 59, 999);
+    isDeadlinePassed = new Date() > deadlineDate;
+  } catch (e) {
+    // Fallback
+  }
+
   // State for member wizard
   const [step, setStep] = useState(1);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
@@ -133,10 +159,18 @@ export default function SurveyTab({ event, role, userId, activeStaff = [], isPar
         </div>
 
         <div>
-          <div className="flex justify-between items-end mb-4 border-b pb-2">
+          <div className="flex flex-col md:flex-row md:justify-between md:items-end mb-4 border-b pb-2 gap-2">
             <h3 className="text-lg font-bold text-[var(--color-primary)]">メンバー別 回答一覧</h3>
-            <div className="bg-blue-50 text-[var(--color-primary)] px-3 py-1 rounded-full text-xs font-bold border border-blue-200 shadow-sm">
-              回答率: {responses.length} / {targetMembers.length} 名
+            <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+              {deadlineDate && (
+                <div className={`px-3 py-1 rounded-full text-xs font-bold border shadow-sm ${isDeadlinePassed ? 'bg-red-50 text-red-600 border-red-200' : 'bg-gray-50 text-gray-700 border-gray-200'}`}>
+                  回答締切: {deadlineDate.toLocaleDateString('ja-JP')}
+                  {isDeadlinePassed && ' (締切超過)'}
+                </div>
+              )}
+              <div className="bg-blue-50 text-[var(--color-primary)] px-3 py-1 rounded-full text-xs font-bold border border-blue-200 shadow-sm">
+                回答率: {responses.length} / {targetMembers.length} 名
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">

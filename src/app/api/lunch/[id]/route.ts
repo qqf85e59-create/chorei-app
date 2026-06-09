@@ -84,6 +84,18 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // Only allow updating specific fields
     const { status, confirmedDate, restaurantId, totalCost } = body;
     
+    // Get original event to check what's changed and get title/participants
+    const originalEvent = await prisma.lunchEvent.findUnique({
+      where: { id: eventId },
+      include: {
+        participants: true,
+      }
+    });
+
+    if (!originalEvent) {
+      return NextResponse.json({ error: "Event not found" }, { status: 404 });
+    }
+
     const updateData: any = {};
     if (status) updateData.status = status;
     if (confirmedDate) updateData.confirmedDate = new Date(confirmedDate);
@@ -94,7 +106,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     // (既に更新されているかのチェックは簡略化のため省くが、実際には状態遷移チェックが必要かも)
     const updatedEvent = await prisma.lunchEvent.update({
       where: { id: eventId },
-      data: updateData
+      data: updateData,
+      include: {
+        restaurant: true
+      }
     });
 
     if ((status === 'scheduled' || status === 'completed') && updateData.restaurantId) {
@@ -105,6 +120,36 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           lastVisited: new Date()
         }
       });
+    }
+
+    // P9-3: 日程・店舗確定時のアプリ内通知
+    const isConfirmedDateChanged = confirmedDate && originalEvent.confirmedDate?.toISOString() !== new Date(confirmedDate).toISOString();
+    const isRestaurantChanged = restaurantId !== undefined && originalEvent.restaurantId !== restaurantId;
+    const isStatusChangedToScheduled = status === 'scheduled' && originalEvent.status !== 'scheduled';
+
+    if (isConfirmedDateChanged || isRestaurantChanged || isStatusChangedToScheduled) {
+      // Create notification for all participants
+      if (updatedEvent.confirmedDate) {
+        const dateStr = updatedEvent.confirmedDate.toLocaleDateString('ja-JP');
+        const restStr = updatedEvent.restaurant ? `（店舗: ${updatedEvent.restaurant.name}）` : '';
+        const message = `${updatedEvent.title} の日程が ${dateStr} に確定しました${restStr}`;
+
+        // 主催者以外の参加者に通知
+        const targetUserIds = originalEvent.participants
+          .filter((p) => p.userId !== originalEvent.organizerId)
+          .map((p) => p.userId);
+
+        if (targetUserIds.length > 0) {
+          await prisma.notification.createMany({
+            data: targetUserIds.map((userId) => ({
+              userId,
+              type: 'lunch_confirmed',
+              message,
+              linkUrl: `/lunch/${eventId}`
+            }))
+          });
+        }
+      }
     }
 
     return NextResponse.json(updatedEvent);

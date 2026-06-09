@@ -45,7 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       activeStaff,
       excludedMemberIds,
       previousParticipantIds,
-      4 // Number of staff to select
+      3 // Number of staff to select
     );
 
     // 5. Save results to Participation table (clear previous if any)

@@ -36,6 +36,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           grade: user.grade,
           lunchStatus: user.lunchStatus,
+          lunchRole: user.lunchRole,
         };
       },
     }),
@@ -50,6 +51,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = user.role;
         token.grade = user.grade;
         token.lunchStatus = user.lunchStatus;
+        token.lunchRole = user.lunchRole;
       }
       return token;
     },
@@ -61,6 +63,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.role = token.role as string;
         session.user.grade = token.grade as string;
         session.user.lunchStatus = token.lunchStatus as string;
+        session.user.lunchRole = token.lunchRole as string;
       }
       return session;
     },

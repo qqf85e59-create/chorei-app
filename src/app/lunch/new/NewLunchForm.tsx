@@ -3,17 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type User = {
-  id: string;
-  name: string;
-};
-
-type Props = {
-  organizers: User[];
-  defaultOrganizerId: string;
-};
-
-export default function NewLunchForm({ organizers, defaultOrganizerId }: Props) {
+export default function NewLunchForm() {
   const generateMonthOptions = () => {
     const options = [];
     const now = new Date();
@@ -22,7 +12,7 @@ export default function NewLunchForm({ organizers, defaultOrganizerId }: Props) 
       const englishMonth = d.toLocaleString('en-US', { month: 'long' });
       options.push({
         label: `${d.getFullYear()}年${d.getMonth() + 1}月度`,
-        title: `仙台Synergy Bites ${englishMonth}`
+        title: `仙台Synergy Bites ${d.getFullYear()} ${englishMonth}`
       });
     }
     return options;
@@ -30,7 +20,6 @@ export default function NewLunchForm({ organizers, defaultOrganizerId }: Props) 
   const monthOptions = generateMonthOptions();
   
   const [selectedMonth, setSelectedMonth] = useState(monthOptions[0]);
-  const [organizerId, setOrganizerId] = useState<string>(defaultOrganizerId || "");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
@@ -39,15 +28,18 @@ export default function NewLunchForm({ organizers, defaultOrganizerId }: Props) 
     setLoading(true);
 
     try {
+      // 主催者はログイン中の本人。サーバー側でセッションから設定する。
       const res = await fetch("/api/lunch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: selectedMonth.title, organizerId }),
+        body: JSON.stringify({ title: selectedMonth.title }),
       });
 
       if (res.ok) {
         const data = await res.json();
         router.push(`/lunch/${data.id}`);
+      } else if (res.status === 409) {
+        alert("今月のランチ会は既に存在します");
       } else {
         alert("作成に失敗しました");
       }
@@ -84,23 +76,7 @@ export default function NewLunchForm({ organizers, defaultOrganizerId }: Props) 
         <p className="text-xs text-gray-500 mt-2">※タイトルは「{selectedMonth.title}」として登録されます</p>
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">
-          当番（主催者）
-        </label>
-        <select
-          value={organizerId}
-          onChange={(e) => setOrganizerId(e.target.value)}
-          className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-[var(--color-accent)]"
-          required
-        >
-          <option value="">選択してください</option>
-          {organizers.map(org => (
-            <option key={org.id} value={org.id}>{org.name}</option>
-          ))}
-        </select>
-        <p className="text-xs text-gray-500 mt-1">※前回の担当から自動計算された次回の当番が初期選択されています</p>
-      </div>
+      <p className="text-xs text-gray-500">※主催者はログイン中のあなたとして登録されます</p>
 
       <div className="pt-4 flex justify-end gap-3">
         <button
