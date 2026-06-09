@@ -5,13 +5,15 @@ import { Header } from "@/components/header";
 import { prisma } from "@/lib/prisma";
 import LunchManagementTabs from "./LunchManagementTabs";
 import DeleteEventButton from "./DeleteEventButton";
+import { Suspense } from "react";
 
 export default async function LunchManagementPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await auth();
   
-  if (!session || session.user?.role !== "organizer") {
-    redirect("/dashboard");
+  if (!session) {
+    redirect("/login");
   }
+  const role = session.user.role;
 
   const eventId = parseInt((await params).id);
   const event = await prisma.lunchEvent.findUnique({
@@ -35,7 +37,7 @@ export default async function LunchManagementPage({ params }: { params: Promise<
 
   // メンバー選定用のアクティブスタッフ一覧
   const activeStaff = await prisma.user.findMany({
-    where: { lunchStatus: 'active', role: 'member' }
+    where: { lunchStatus: 'active', role: 'member', deletedAt: null }
   });
 
   // 前回の参加者IDリスト (連続選定抑制用)
@@ -50,9 +52,8 @@ export default async function LunchManagementPage({ params }: { params: Promise<
     : [];
 
   return (
-    <>
-      <Header />
-      <main className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
+    <div className="min-h-screen bg-gray-50 pb-20">
+      <main className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-[var(--color-primary)] accent-bar pl-3">
             ランチ会管理: {event.title}
@@ -60,12 +61,16 @@ export default async function LunchManagementPage({ params }: { params: Promise<
           <DeleteEventButton eventId={event.id} eventTitle={event.title} />
         </div>
         
-        <LunchManagementTabs 
-          event={event} 
-          activeStaff={activeStaff}
-          previousParticipantIds={previousParticipantIds}
-        />
+        <Suspense fallback={<div>Loading tabs...</div>}>
+          <LunchManagementTabs 
+            event={event as any} 
+            activeStaff={activeStaff}
+            previousParticipantIds={previousParticipantIds}
+            role={role}
+            userId={session.user.id}
+          />
+        </Suspense>
       </main>
-    </>
+    </div>
   );
 }

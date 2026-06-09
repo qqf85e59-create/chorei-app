@@ -8,7 +8,7 @@ import NewLunchForm from "./NewLunchForm";
 export default async function NewLunchPage() {
   const session = await auth();
   
-  if (!session || session.user?.role !== "organizer") {
+  if (!session || session.user?.role !== "admin") {
     redirect("/dashboard");
   }
 
@@ -20,7 +20,7 @@ export default async function NewLunchPage() {
 
   // 主催者一覧を取得
   const organizers = await prisma.user.findMany({
-    where: { role: 'admin' }
+    where: { role: 'admin', deletedAt: null }
   });
 
   // 篠原(Shinohara)と水谷(Mizutani)の交代ロジック
@@ -36,8 +36,6 @@ export default async function NewLunchPage() {
   }
 
   return (
-    <>
-      <Header />
       <main className="max-w-3xl mx-auto p-6 space-y-6">
         <div className="flex items-center gap-2">
           <h2 className="text-2xl font-bold text-[var(--color-primary)] accent-bar pl-3">新規ランチ会 作成</h2>
@@ -50,6 +48,5 @@ export default async function NewLunchPage() {
           />
         </div>
       </main>
-    </>
   );
 }

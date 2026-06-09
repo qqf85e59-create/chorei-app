@@ -37,7 +37,10 @@ export async function POST(request: Request) {
 
     // 2. サブ発話者候補となる全ユーザーを取得（メイン発話者は除外）
     const candidateUsers = await prisma.user.findMany({
-      where: targetSession.speakerId ? { id: { not: targetSession.speakerId } } : undefined,
+      where: {
+        deletedAt: null,
+        ...(targetSession.speakerId ? { id: { not: targetSession.speakerId } } : {})
+      },
     });
 
     // 3. 対象セッションにおける 出欠（Attendance）と 事前申請（AbsenceRequest）を取得

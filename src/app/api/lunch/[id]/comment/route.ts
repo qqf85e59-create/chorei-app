@@ -1,16 +1,18 @@
-import { auth } from "@/lib/auth";
+import { requireUser, handleApiError } from "@/lib/api-auth";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
-
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireUser();
+    const eventId = parseInt((await params).id);
+    const userId = session.user.id;
+
+    const isParticipant = await prisma.participation.count({ where: { eventId, userId } });
+    if (!isParticipant && session.user.role !== 'admin') {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const eventId = parseInt((await params).id);
     const comments = await prisma.lunchComment.findMany({
       where: { eventId },
       include: { user: true },
@@ -26,20 +28,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const session = await auth();
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const session = await requireUser();
+    const eventId = parseInt((await params).id);
+    const userId = session.user.id;
+
+    const isParticipant = await prisma.participation.count({ where: { eventId, userId } });
+    if (!isParticipant && session.user.role !== 'admin') {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const eventId = parseInt((await params).id);
     const body = await req.json();
     const { content } = body;
 
     if (!content) {
       return NextResponse.json({ error: "Content is required" }, { status: 400 });
     }
-
-    const userId = (session.user as any).id as string;
 
     const comment = await prisma.lunchComment.create({
       data: {

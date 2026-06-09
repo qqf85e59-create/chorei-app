@@ -16,7 +16,10 @@ model User {
   password  String
   role      String   @default("member")
   lunchStatus String @default("active")
+  choreiStatus String @default("active")
   createdAt DateTime @default(now())
+  deletedAt DateTime?
+  
   speakerSessions     Session[]        @relation("SessionSpeaker")
   commentatorSessions Session[]        @relation("SessionCommentators")
   attendances       Attendance[]
@@ -24,6 +27,8 @@ model User {
   commentatorViews  CommentatorView[]
   configHistories   ConfigHistory[]  @relation("ConfigHistoryChangedBy")
   notifications     Notification[]
+
+  @@index([deletedAt])
 
   // Lunch feature relations
   organizedLunches    LunchEvent[]        @relation("LunchOrganizer")
@@ -83,6 +88,11 @@ model Session {
   absenceRequests  AbsenceRequest[]
   commentatorViews CommentatorView[]
   notifications    Notification[]
+
+  @@index([phaseId])
+  @@index([speakerId])
+  @@index([date])
+  @@index([phaseId, weekNumber])
 }
 
 model Attendance {
@@ -97,6 +107,7 @@ model Attendance {
   user    User    @relation(fields: [userId], references: [id])
 
   @@unique([sessionId, userId])
+  @@index([userId])
 }
 
 model AbsenceRequest {
@@ -111,6 +122,9 @@ model AbsenceRequest {
 
   user    User    @relation(fields: [userId], references: [id])
   session Session @relation(fields: [sessionId], references: [id])
+
+  @@index([sessionId])
+  @@index([userId])
 }
 
 model Notification {
@@ -119,11 +133,14 @@ model Notification {
   sessionId Int?
   type      String
   message   String
+  linkUrl   String?
   createdAt DateTime  @default(now())
   readAt    DateTime?
 
   user    User     @relation(fields: [userId], references: [id])
   session Session? @relation(fields: [sessionId], references: [id])
+
+  @@index([userId, readAt])
 }
 
 model Holiday {
@@ -164,6 +181,7 @@ model CommentatorView {
   session Session @relation(fields: [sessionId], references: [id])
 
   @@unique([userId, sessionId])
+  @@index([sessionId])
 }
 
 // ============================================
@@ -189,6 +207,11 @@ model LunchEvent {
   comments        LunchComment[]
   photos          LunchPhoto[]
   settlements     Settlement[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([organizerId])
+  @@index([restaurantId])
 }
 
 model Participation {
@@ -200,6 +223,7 @@ model Participation {
   isOrganizer Boolean   @default(false)
   
   @@unique([eventId, userId])
+  @@index([userId])
 }
 
 model ScheduleCandidate {
@@ -209,6 +233,8 @@ model ScheduleCandidate {
   candidateDate DateTime
   note        String?
   responses   ScheduleResponse[]
+
+  @@index([eventId])
 }
 
 model ScheduleResponse {
@@ -220,6 +246,7 @@ model ScheduleResponse {
   response    String    // "○" | "△" | "×"
   
   @@unique([candidateId, userId])
+  @@index([userId])
 }
 
 model SurveyResponse {
@@ -233,6 +260,7 @@ model SurveyResponse {
   budget      String?   // "〜1000" | "1000〜1500" | "1500〜2000" | "2000〜"
   
   @@unique([eventId, userId])
+  @@index([userId])
 }
 
 model Restaurant {
@@ -274,6 +302,8 @@ model ExclusionLog {
   excludedBy      User      @relation("excludedBy", fields: [excludedById], references: [id])
   reason          String?
   createdAt       DateTime  @default(now())
+
+  @@index([eventId])
 }
 
 model Settlement {
@@ -286,6 +316,8 @@ model Settlement {
   status      String    // "unpaid" | "paid"
   note        String?
   createdAt   DateTime  @default(now())
+
+  @@index([eventId])
 }
 
 model LunchComment {
@@ -296,6 +328,9 @@ model LunchComment {
   user      User      @relation(fields: [userId], references: [id])
   content   String
   createdAt DateTime  @default(now())
+
+  @@index([eventId])
+  @@index([createdAt])
 }
 
 model LunchPhoto {
@@ -305,4 +340,6 @@ model LunchPhoto {
   url       String
   caption   String?
   createdAt DateTime  @default(now())
+
+  @@index([eventId])
 }

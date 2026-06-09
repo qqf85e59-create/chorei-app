@@ -12,14 +12,15 @@ import {
 } from '@/components/ui/select';
 import { Users, Plus, Pencil, Trash2 } from 'lucide-react';
 import { GRADE_LABELS, GRADE_ORDER } from '@/lib/constants';
+import { toast } from 'sonner';
 
 interface UserData {
   id: string; name: string; grade: string;
-  email: string | null; role: string; lunchStatus: string; createdAt: string;
+  email: string | null; role: string; lunchStatus: string; choreiStatus: string; createdAt: string;
 }
 
 interface FormData {
-  name: string; grade: string; email: string; role: string; password: string; lunchStatus: string;
+  name: string; grade: string; email: string; role: string; password: string; lunchStatus: string; choreiStatus: string;
 }
 
 export default function MembersPage() {
@@ -29,8 +30,9 @@ export default function MembersPage() {
   const [editUser, setEditUser] = useState<UserData | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState<FormData>({ name:'', grade:'E3a', email:'', role:'member', password:'' });
+  const [form, setForm] = useState<FormData>({ name:'', grade:'E3a', email:'', role:'member', password:'', lunchStatus:'active', choreiStatus:'active' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { fetchUsers(); }, []);
 
@@ -42,28 +44,43 @@ export default function MembersPage() {
 
   function openCreate() {
     setIsCreating(true); setEditUser(null);
-    setForm({ name:'', grade:GRADE_ORDER[0], email:'', role:'member', password:'chorei2026', lunchStatus:'active' });
+    setForm({ name:'', grade:GRADE_ORDER[0], email:'', role:'member', password:'chorei2026', lunchStatus:'active', choreiStatus:'active' });
     setModal(true);
   }
   function openEdit(user: UserData) {
     setIsCreating(false); setEditUser(user);
-    setForm({ name:user.name, grade:user.grade, email:user.email||'', role:user.role, password:'', lunchStatus:user.lunchStatus||'active' });
+    setForm({ name:user.name, grade:user.grade, email:user.email||'', role:user.role, password:'', lunchStatus:user.lunchStatus||'active', choreiStatus:user.choreiStatus||'active' });
     setModal(true);
   }
   async function handleSave() {
+    setSaving(true);
     try {
       if (isCreating) {
-        await fetch('/api/users', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(form) });
+        const res = await fetch('/api/users', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(form) });
+        if (!res.ok) throw new Error((await res.json()).error || "保存に失敗しました");
       } else if (editUser) {
-        await fetch('/api/users', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:editUser.id, ...form }) });
+        const res = await fetch('/api/users', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ id:editUser.id, ...form }) });
+        if (!res.ok) throw new Error((await res.json()).error || "保存に失敗しました");
       }
+      toast.success('保存しました');
       setModal(false); setEditUser(null); fetchUsers();
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '保存に失敗しました');
+    } finally {
+      setSaving(false);
+    }
   }
   async function handleDelete(id: string) {
     setDeleteConfirmId(null);
-    try { await fetch(`/api/users?id=${id}`, { method:'DELETE' }); fetchUsers(); }
-    catch (e) { console.error(e); }
+    const promise = fetch(`/api/users?id=${id}`, { method:'DELETE' }).then(res => {
+      if (!res.ok) throw new Error();
+      fetchUsers();
+    });
+    toast.promise(promise, {
+      loading: '削除中...',
+      success: '削除しました',
+      error: '削除に失敗しました',
+    });
   }
 
   if (loading) return (
@@ -97,7 +114,7 @@ export default function MembersPage() {
         </div>
 
         {/* Summary */}
-        <div className="grid grid-cols-4 gap-3.5 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-6">
           {summary.map(({ label, value, color }) => (
             <div key={label} className="bg-white border border-[#E0E4EF] rounded-xl p-4 text-center shadow-[0_2px_8px_rgba(0,19,93,0.05)]">
               <p style={{ color }} className="text-[28px] font-bold leading-none">{value}</p>
@@ -108,11 +125,65 @@ export default function MembersPage() {
 
         {/* Table */}
         <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
+          
+          {/* Mobile Cards */}
+          <div className="sm:hidden divide-y divide-[#E0E4EF]">
+            {users.map(user => (
+              <div key={user.id} className="p-4 bg-white space-y-3">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-[#00135D]/10 flex items-center justify-center text-xs font-bold text-[#00135D] shrink-0">
+                      {user.name[0]}
+                    </div>
+                    <div>
+                      <span className="text-sm font-semibold text-[#1A1D23]">{user.name}</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">{user.email || '—'}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 items-center">
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(user)}
+                      className="w-7 h-7 p-0 hover:bg-[#F5F7FA] border border-[#E0E4EF]">
+                      <Pencil className="h-3 w-3 text-[#3D4252]" />
+                    </Button>
+                    {deleteConfirmId === user.id ? (
+                      <>
+                        <Button size="sm" onClick={() => handleDelete(user.id)}
+                          className="bg-[#C0392B] hover:bg-[#A93226] text-white h-7 px-2 text-xs">確認</Button>
+                        <Button size="sm" variant="ghost" onClick={() => setDeleteConfirmId(null)}
+                          className="h-7 px-2 text-xs border border-[#E0E4EF]">戻る</Button>
+                      </>
+                    ) : (
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteConfirmId(user.id)}
+                        className="w-7 h-7 p-0 hover:bg-[#FEF2F2] border border-[#FCCACA]">
+                        <Trash2 className="h-3 w-3 text-[#C0392B]" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-xs">
+                    {GRADE_LABELS[user.grade] || user.grade}
+                  </Badge>
+                  <Badge className={user.role==='admin' ? 'bg-[#00135D]/10 text-[#00135D] border-[#00135D]/20 text-xs' : 'bg-[#F5F7FA] text-muted-foreground border-[#E0E4EF] text-xs'}>
+                    {user.role==='admin'?'運営':'参加者'}
+                  </Badge>
+                  <Badge className={user.choreiStatus==='active'?'bg-blue-100 text-blue-700 border-blue-200 text-xs':'bg-gray-100 text-gray-500 border-gray-200 text-xs'}>
+                    朝礼:{user.choreiStatus==='active'?'参加':'不参加'}
+                  </Badge>
+                  <Badge className={user.lunchStatus==='active'?'bg-green-100 text-green-700 border-green-200 text-xs':'bg-gray-100 text-gray-500 border-gray-200 text-xs'}>
+                    ランチ:{user.lunchStatus==='active'?'参加':'不参加'}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop Table */}
+          <div className="hidden sm:block overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#F8F9FC] border-b border-[#E0E4EF]">
-                  {['名前','等級','メールアドレス','権限','ランチ参加','操作'].map(h => (
+                  {['名前','等級','メールアドレス','権限','朝礼参加','ランチ参加','操作'].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-bold text-[#00135D] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -139,6 +210,11 @@ export default function MembersPage() {
                         ? 'bg-[#00135D]/10 text-[#00135D] border-[#00135D]/20 text-xs'
                         : 'bg-[#F5F7FA] text-muted-foreground border-[#E0E4EF] text-xs'}>
                         {user.role==='admin'?'運営':'参加者'}
+                      </Badge>
+                    </td>
+                    <td className="px-5 py-3">
+                      <Badge className={user.choreiStatus==='active'?'bg-blue-100 text-blue-700 border-blue-200 text-xs':'bg-gray-100 text-gray-500 border-gray-200 text-xs'}>
+                        {user.choreiStatus==='active'?'参加':'不参加'}
                       </Badge>
                     </td>
                     <td className="px-5 py-3">
@@ -183,7 +259,7 @@ export default function MembersPage() {
       {modal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
           onClick={() => setModal(false)}>
-          <div className="bg-white rounded-[16px] w-full max-w-[400px] overflow-hidden shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
+          <div className="bg-white rounded-[16px] w-full max-w-[400px] max-h-[90vh] overflow-y-auto shadow-[0_20px_60px_rgba(0,0,0,0.2)]"
             onClick={e => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-[#00135D] to-[#1E3A8A] px-6 py-5">
               <p className="text-white font-bold text-[15px]">{isCreating ? '参加者を追加' : '参加者を編集'}</p>
@@ -221,6 +297,16 @@ export default function MembersPage() {
                 </Select>
               </div>
               <div>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">朝礼参加</Label>
+                <Select value={form.choreiStatus} onValueChange={v => setForm({ ...form, choreiStatus: v || 'active' })}>
+                  <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">参加</SelectItem>
+                    <SelectItem value="inactive">不参加</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">ランチ参加</Label>
                 <Select value={form.lunchStatus} onValueChange={v => setForm({ ...form, lunchStatus: v || 'active' })}>
                   <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
@@ -239,9 +325,9 @@ export default function MembersPage() {
                   placeholder={isCreating ? 'パスワード' : '変更しない場合は空欄'}
                   className="border-[#E0E4EF] text-sm h-9 focus:border-[#0070CC] focus:ring-[#0070CC]/20" />
               </div>
-              <Button onClick={handleSave}
-                className="w-full bg-[#00135D] hover:bg-[#1E3A8A] text-white rounded-xl h-11 font-bold shadow-[0_4px_12px_rgba(0,19,93,0.25)] mt-1">
-                {isCreating ? '追加' : '保存'}
+              <Button onClick={handleSave} disabled={saving}
+                className="w-full bg-[#00135D] hover:bg-[#1E3A8A] text-white rounded-xl h-11 font-bold shadow-[0_4px_12px_rgba(0,19,93,0.25)] mt-1 disabled:opacity-50">
+                {saving ? '保存中...' : (isCreating ? '追加' : '保存')}
               </Button>
             </div>
           </div>

@@ -48,6 +48,7 @@ export async function GET(request: Request) {
 
     // 全ユーザーを等級昇順で取得
     const allUsers = await prisma.user.findMany({
+      where: { deletedAt: null },
       select: { id: true, name: true, grade: true },
     });
 

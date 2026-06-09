@@ -27,12 +27,15 @@ export default async function HistoryPage() {
   });
 
   return (
-    <>
-      <Header />
       <main className="max-w-4xl mx-auto p-6 space-y-6">
         
         <div className="flex justify-between items-center">
           <h2 className="text-2xl font-bold text-[var(--color-primary)] accent-bar pl-3">開催・お店履歴</h2>
+          {session.user?.role === 'admin' && (
+            <Link href="/lunch/new" className="px-4 py-2 bg-[var(--color-accent)] text-white rounded-md text-sm font-semibold hover:bg-orange-600 transition-colors">
+              ＋ 新規作成
+            </Link>
+          )}
         </div>
 
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
@@ -92,6 +95,5 @@ export default async function HistoryPage() {
         </div>
 
       </main>
-    </>
   );
 }

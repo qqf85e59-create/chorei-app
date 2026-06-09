@@ -3,6 +3,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Header } from "@/components/header";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "仙台事務所 朝礼運営アプリ | アタックスグループ",
@@ -21,6 +22,7 @@ export default function RootLayout({
           <TooltipProvider>
             <Header />
             <main className="flex-1">{children}</main>
+            <Toaster richColors position="top-center" />
           </TooltipProvider>
         </Providers>
       </body>
