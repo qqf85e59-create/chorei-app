@@ -10,7 +10,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userRole = (session.user as { role: string }).role;
+  const userRole = session.user.role;
 
   if (userRole === 'admin') {
     const users = await prisma.user.findMany({
@@ -20,6 +20,7 @@ export async function GET() {
         grade: true,
         email: true,
         role: true,
+        lunchStatus: true,
         createdAt: true,
       },
       orderBy: { createdAt: 'asc' },
@@ -42,12 +43,12 @@ export async function GET() {
 // POST /api/users - Create a new user (admin only)
 export async function POST(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
   const body = await request.json();
-  const { name, grade, email, role, password } = body;
+  const { name, grade, email, role, password, lunchStatus } = body;
 
   const hashedPassword = await bcrypt.hash(password || 'chorei2026', 10);
 
@@ -57,6 +58,7 @@ export async function POST(request: Request) {
       grade,
       email,
       role: role || 'member',
+      lunchStatus: lunchStatus || 'active',
       password: hashedPassword,
     },
     select: {
@@ -65,6 +67,7 @@ export async function POST(request: Request) {
       grade: true,
       email: true,
       role: true,
+      lunchStatus: true,
       createdAt: true,
     },
   });
@@ -75,7 +78,7 @@ export async function POST(request: Request) {
 // PUT /api/users - Update a user (admin only)
 export async function PUT(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
@@ -96,6 +99,7 @@ export async function PUT(request: Request) {
       grade: true,
       email: true,
       role: true,
+      lunchStatus: true,
       createdAt: true,
     },
   });
@@ -106,7 +110,7 @@ export async function PUT(request: Request) {
 // DELETE /api/users - Delete a user (admin only)
 export async function DELETE(request: Request) {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

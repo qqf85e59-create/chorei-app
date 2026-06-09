@@ -14,8 +14,14 @@ export async function proxy(request: NextRequest) {
   });
   const { pathname } = request.nextUrl;
 
-  // Public routes
-  if (pathname === '/login' || pathname.startsWith('/api/auth')) {
+  // Public routes.
+  // /api/cron/* is authenticated by CRON_SECRET inside the handler (no session cookie),
+  // so it must bypass the session check here.
+  if (
+    pathname === '/login' ||
+    pathname.startsWith('/api/auth') ||
+    pathname.startsWith('/api/cron')
+  ) {
     return NextResponse.next();
   }
 

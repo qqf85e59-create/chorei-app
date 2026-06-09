@@ -42,17 +42,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        // ログイン時は全フィールドを明示的に上書き（古いJWTキャッシュを排除）
         token.id = user.id;
-        token.role = (user as { role: string }).role;
-        token.grade = (user as { grade: string }).grade;
+        token.name = user.name;
+        token.email = user.email;
+        token.role = user.role;
+        token.grade = user.grade;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
-        (session.user as { role: string }).role = token.role as string;
-        (session.user as { grade: string }).grade = token.grade as string;
+        session.user.name = token.name as string;
+        session.user.email = token.email as string;
+        session.user.role = token.role as string;
+        session.user.grade = token.grade as string;
       }
       return session;
     },

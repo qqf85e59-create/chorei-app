@@ -4,7 +4,7 @@ export const CONFIG_KEYS = {
   MEETING_URL: 'meeting_url',
 } as const;
 
-export const DEFAULT_MEETING_URL = 'https://zoom.us/j/1234567890';
+export const DEFAULT_MEETING_URL = 'https://teams.microsoft.com/meet/4994985303963?p=2rYMBuP8rBv9EtKEKD';
 
 /**
  * Get a config value by key. Returns default if not set.

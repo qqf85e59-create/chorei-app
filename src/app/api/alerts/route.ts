@@ -5,7 +5,7 @@ import { getAllAbsenceAlerts } from '@/lib/absence-alert';
 // GET /api/alerts - Get absence alerts (admin only)
 export async function GET() {
   const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
+  if (!session || session.user.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 

@@ -1,0 +1,55 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+
+
+export async function POST(req: Request) {
+  try {
+    const session = await auth();
+    if (!session || session.user.role !== 'admin') {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const { title, organizerId } = body;
+
+    if (!title || !organizerId) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    const lunchEvent = await prisma.lunchEvent.create({
+      data: {
+        title,
+        organizerId,
+        status: "planning"
+      }
+    });
+
+    return NextResponse.json(lunchEvent, { status: 201 });
+  } catch (error) {
+    console.error("Error creating lunch event:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}
+
+export async function GET(req: Request) {
+  try {
+    const session = await auth();
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const events = await prisma.lunchEvent.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+        organizer: true,
+        restaurant: true,
+      }
+    });
+
+    return NextResponse.json(events);
+  } catch (error) {
+    console.error("Error fetching lunch events:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+  }
+}

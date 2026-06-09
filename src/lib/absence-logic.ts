@@ -1,11 +1,24 @@
+import { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
-import { getSessionDates, getWeekNumber } from './rotation';
+
+// Type for transaction client or regular prisma client
+type TxClient = Prisma.TransactionClient | PrismaClient;
 
 // Minimum attendance rules
 // Phase 1: total attendance (speaker + listeners) must be >= 3
-// Phase 2/3: commentators count must be >= 4
+// Phase 2/3: at least 1 commentator (respondent) required; absentees trigger auto re-selection.
 export const PHASE1_MIN_TOTAL = 3;
-export const PHASE2_3_MIN_COMMENTATORS = 4;
+export const PHASE2_3_MIN_COMMENTATORS = 1; // Phase 2 は応答者1名（欠席時は自動再選）
+
+/** Unbiased Fisher–Yates shuffle (does not mutate the input). */
+function shuffle<T>(arr: readonly T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 export type AdjustmentReport = {
   speakerCascaded: boolean;
@@ -17,8 +30,8 @@ export type AdjustmentReport = {
 /**
  * Determine phase number for a session via its phase relation.
  */
-async function getPhaseNumber(phaseId: number): Promise<number> {
-  const phase = await prisma.phase.findUnique({ where: { id: phaseId } });
+async function getPhaseNumber(phaseId: number, tx: TxClient = prisma): Promise<number> {
+  const phase = await tx.phase.findUnique({ where: { id: phaseId } });
   return phase?.phaseNumber ?? 1;
 }
 
@@ -26,16 +39,16 @@ async function getPhaseNumber(phaseId: number): Promise<number> {
  * Collect user IDs that are declared absent (AbsenceRequest) or marked absent/left_early/unspoken in Attendance
  * for a given session.
  */
-export async function getUnavailableUserIds(sessionId: number): Promise<Set<string>> {
-  const [attendances, requests] = await Promise.all([
-    prisma.attendance.findMany({
-      where: {
-        sessionId,
-        status: { in: ['absent', 'left_early', 'unspoken'] },
-      },
-    }),
-    prisma.absenceRequest.findMany({ where: { sessionId } }),
-  ]);
+export async function getUnavailableUserIds(sessionId: number, tx: TxClient = prisma): Promise<Set<string>> {
+  // NOTE: Sequential queries — Prisma interactive transactions do not support
+  // concurrent queries on the same transaction client (single connection).
+  const attendances = await tx.attendance.findMany({
+    where: {
+      sessionId,
+      status: { in: ['absent', 'left_early', 'unspoken'] },
+    },
+  });
+  const requests = await tx.absenceRequest.findMany({ where: { sessionId } });
   return new Set<string>([
     ...attendances.map((a) => a.userId),
     ...requests.map((r) => r.userId),
@@ -43,99 +56,89 @@ export async function getUnavailableUserIds(sessionId: number): Promise<Set<stri
 }
 
 /**
- * Cascade speaker shift when the scheduled speaker is absent:
- *   - Clear speaker on current session
- *   - Pull subsequent speakers forward by 1
- *   - Append a new session at the end for the displaced (absent) speaker
- * Works for any phase where speakerId drives rotation.
+ * Format a date as a Japanese-style date string (e.g. "5月12日").
  */
-export async function cascadeSpeakerShift(sessionId: number, absentUserId: string) {
-  const target = await prisma.session.findUnique({ where: { id: sessionId } });
-  if (!target) return;
+function formatDateJP(date: Date): string {
+  return `${date.getMonth() + 1}月${date.getDate()}日`;
+}
 
-  const futureSessions = await prisma.session.findMany({
-    where: {
-      phaseId: target.phaseId,
-      date: { gte: target.date },
-    },
+/**
+ * Reflow speakers across the remaining scheduled sessions of a phase ("繰り上げ").
+ *
+ * Pure re-assignment over EXISTING sessions — no new slots are appended (this is
+ * what previously caused makeup slots to spill past the phase end and collide with
+ * the next phase's dates).
+ *
+ * Algorithm:
+ *   1. Take the current speakers of the scheduled sessions on/after `fromDate`,
+ *      in date order, as a queue.
+ *   2. Walk the dates; for each, assign the first queued speaker who is NOT
+ *      unavailable (absent / left_early / unspoken) on that date.
+ *   3. An unavailable speaker stays at the front of the queue and is deferred to
+ *      the next date they can attend — i.e. "次回へ送る（次回も欠席なら次々回へ…）".
+ *   4. If nobody in the queue can attend a date, that session is left with no speaker.
+ *
+ * Notifies a speaker whenever their assigned date changes.
+ * Returns the number of sessions whose speaker changed.
+ */
+export async function reflowSpeakers(
+  phaseId: number,
+  fromDate: Date,
+  tx: TxClient = prisma
+): Promise<number> {
+  const sessions = await tx.session.findMany({
+    where: { phaseId, status: 'scheduled', date: { gte: fromDate } },
     orderBy: { date: 'asc' },
   });
-  if (futureSessions.length === 0) return;
+  if (sessions.length === 0) return 0;
 
-  // 1. Remove speaker from the target (today)
-  await prisma.session.update({
-    where: { id: target.id },
-    data: {
-      speakerId: null,
-      adminNote: target.adminNote
-        ? `${target.adminNote} / 欠席により発表順延`
-        : '欠席により発表順延',
-    },
-  });
+  // Queue of speakers to place, preserving current rotation order (skip empties).
+  const queue: string[] = sessions
+    .map((s) => s.speakerId)
+    .filter((id): id is string => id !== null);
 
-  if (futureSessions.length > 1) {
-    // 2. Shift speakerId/topicId forward along the chain
-    let prevSpeakerId = futureSessions[0].speakerId;
-    let prevTopicId = futureSessions[0].topicId;
+  // Unavailable user set per session (sequential — interactive tx is single-connection).
+  const unavailableBySession = new Map<number, Set<string>>();
+  for (const s of sessions) {
+    unavailableBySession.set(s.id, await getUnavailableUserIds(s.id, tx));
+  }
 
-    for (let i = 1; i < futureSessions.length; i++) {
-      const s = futureSessions[i];
-      const currSpeakerId = s.speakerId;
-      const currTopicId = s.topicId;
+  let changed = 0;
+  for (const s of sessions) {
+    const unavailable = unavailableBySession.get(s.id)!;
+    const pickIdx = queue.findIndex((uid) => !unavailable.has(uid));
+    const newSpeaker = pickIdx >= 0 ? queue[pickIdx] : null;
+    if (pickIdx >= 0) queue.splice(pickIdx, 1);
 
-      await prisma.session.update({
-        where: { id: s.id },
+    if (s.speakerId === newSpeaker) continue;
+
+    await tx.session.update({
+      where: { id: s.id },
+      data: { speakerId: newSpeaker },
+    });
+    changed++;
+
+    if (newSpeaker) {
+      await tx.notification.create({
         data: {
-          speakerId: prevSpeakerId,
-          topicId: prevTopicId,
-          adminNote: s.adminNote ?? '自動順送り（スケジュール再割当）',
-        },
-      });
-
-      prevSpeakerId = currSpeakerId;
-      prevTopicId = currTopicId;
-    }
-
-    // 3. Create a new session at the end for the displaced (absent) speaker
-    const lastSession = futureSessions[futureSessions.length - 1];
-    const holidays = await prisma.holiday.findMany({ where: { isActive: true } });
-    const holidaySet = new Set(holidays.map((h) => h.date.toISOString().split('T')[0]));
-
-    const nextStartDate = new Date(lastSession.date);
-    nextStartDate.setDate(nextStartDate.getDate() + 1);
-    const nextDates = getSessionDates(nextStartDate, 1, holidaySet);
-
-    if (nextDates.length > 0 && prevSpeakerId) {
-      const newDate = nextDates[0];
-      const weekNum = getWeekNumber(newDate, new Date(futureSessions[0].date));
-
-      await prisma.session.create({
-        data: {
-          date: newDate,
-          phaseId: lastSession.phaseId,
-          weekNumber: weekNum,
-          topicId: prevTopicId,
-          speakerId: prevSpeakerId,
-          startTime: lastSession.startTime,
-          endTime: lastSession.endTime,
-          status: 'scheduled',
-          roundNumber: lastSession.roundNumber,
-          adminNote: '自動順送りによる追加枠',
+          userId: newSpeaker,
+          sessionId: s.id,
+          type: 'speaker_change',
+          message: `${formatDateJP(s.date)} の発話担当になりました（欠席による繰り上げ）`,
         },
       });
     }
   }
 
-  // Silence unused var warning (absentUserId is reserved for audit/log extension)
-  void absentUserId;
+  return changed;
 }
 
 /**
  * Re-select commentators for a session, replacing unavailable users.
  * Target commentator count defaults to what's currently set (or 4 if not set).
  */
-export async function reselectCommentators(sessionId: number): Promise<number> {
-  const targetSession = await prisma.session.findUnique({
+export async function reselectCommentators(sessionId: number, tx: TxClient = prisma): Promise<number> {
+  const targetSession = await tx.session.findUnique({
     where: { id: sessionId },
     include: { commentators: { select: { id: true } } },
   });
@@ -143,18 +146,18 @@ export async function reselectCommentators(sessionId: number): Promise<number> {
 
   const desiredCount = Math.max(targetSession.commentators.length, PHASE2_3_MIN_COMMENTATORS);
 
-  const unavailable = await getUnavailableUserIds(sessionId);
+  const unavailable = await getUnavailableUserIds(sessionId, tx);
 
-  const candidateUsers = await prisma.user.findMany({
+  const candidateUsers = await tx.user.findMany({
     where: targetSession.speakerId ? { id: { not: targetSession.speakerId } } : undefined,
   });
   const availableUsers = candidateUsers.filter((u) => !unavailable.has(u.id));
 
   // Shuffle and select
-  const shuffled = [...availableUsers].sort(() => 0.5 - Math.random());
+  const shuffled = shuffle(availableUsers);
   const selected = shuffled.slice(0, Math.min(desiredCount, shuffled.length));
 
-  await prisma.session.update({
+  await tx.session.update({
     where: { id: sessionId },
     data: {
       commentators: { set: selected.map((u) => ({ id: u.id })) },
@@ -169,25 +172,25 @@ export async function reselectCommentators(sessionId: number): Promise<number> {
  * Check minimum attendance and auto-cancel the session if below threshold.
  * Returns true if the session was cancelled.
  */
-export async function enforceMinimumAttendance(sessionId: number): Promise<{
+export async function enforceMinimumAttendance(sessionId: number, tx: TxClient = prisma): Promise<{
   cancelled: boolean;
   reason?: string;
 }> {
-  const target = await prisma.session.findUnique({
+  const target = await tx.session.findUnique({
     where: { id: sessionId },
     include: { commentators: { select: { id: true } } },
   });
   if (!target) return { cancelled: false };
 
-  const phaseNumber = await getPhaseNumber(target.phaseId);
+  const phaseNumber = await getPhaseNumber(target.phaseId, tx);
 
-  const unavailable = await getUnavailableUserIds(sessionId);
-  const allUsers = await prisma.user.findMany({ select: { id: true } });
+  const unavailable = await getUnavailableUserIds(sessionId, tx);
+  const allUsers = await tx.user.findMany({ select: { id: true } });
   const availableTotal = allUsers.filter((u) => !unavailable.has(u.id)).length;
 
   if (phaseNumber === 1) {
     if (availableTotal < PHASE1_MIN_TOTAL) {
-      await prisma.session.update({
+      await tx.session.update({
         where: { id: sessionId },
         data: {
           status: 'cancelled',
@@ -205,7 +208,7 @@ export async function enforceMinimumAttendance(sessionId: number): Promise<{
     // Phase 2/3: require >= 4 commentators
     const availableCommentators = target.commentators.filter((c) => !unavailable.has(c.id)).length;
     if (availableCommentators < PHASE2_3_MIN_COMMENTATORS) {
-      await prisma.session.update({
+      await tx.session.update({
         where: { id: sessionId },
         data: {
           status: 'cancelled',
@@ -230,7 +233,8 @@ export async function enforceMinimumAttendance(sessionId: number): Promise<{
  */
 export async function adjustForAbsence(
   sessionId: number,
-  absentUserId: string
+  absentUserId: string,
+  tx: TxClient = prisma
 ): Promise<AdjustmentReport> {
   const report: AdjustmentReport = {
     speakerCascaded: false,
@@ -239,32 +243,39 @@ export async function adjustForAbsence(
     reasons: [],
   };
 
-  const target = await prisma.session.findUnique({
+  const target = await tx.session.findUnique({
     where: { id: sessionId },
     include: { commentators: { select: { id: true } } },
   });
   if (!target) return report;
 
-  const phaseNumber = await getPhaseNumber(target.phaseId);
+  const phaseNumber = await getPhaseNumber(target.phaseId, tx);
   const isSpeaker = target.speakerId === absentUserId;
-  const isCommentator = target.commentators.some((c) => c.id === absentUserId);
 
-  // 1) Speaker absence: cascade shift (all phases)
+  // 1) Speaker absence: reflow subsequent speakers forward (all phases).
+  //    The absent speaker is deferred to their next attendable session; no new
+  //    slot is appended.
   if (isSpeaker) {
-    await cascadeSpeakerShift(sessionId, absentUserId);
+    await reflowSpeakers(target.phaseId, target.date, tx);
     report.speakerCascaded = true;
-    report.reasons.push('発話者不在のため後続セッションを繰り上げ、末尾に新枠を追加');
+    report.reasons.push('発話者不在のため後続セッションを繰り上げ');
+    // Phase 2/3: the incoming speaker may already be a commentator → re-select
+    if (phaseNumber !== 1) {
+      await reselectCommentators(sessionId, tx);
+      report.commentatorReassigned = true;
+      report.reasons.push('発話者変更に伴い応答者を再抽選');
+    }
   }
 
-  // 2) Commentator absence in Phase 2/3: re-select to backfill
-  if (!isSpeaker && isCommentator && phaseNumber !== 1) {
-    await reselectCommentators(sessionId);
+  // 2) Non-speaker absence in Phase 2/3: re-select to backfill regardless of commentator status
+  if (!isSpeaker && phaseNumber !== 1) {
+    await reselectCommentators(sessionId, tx);
     report.commentatorReassigned = true;
     report.reasons.push('応答者不在のため代替応答者を再抽選');
   }
 
   // 3) Enforce minimum attendance after adjustments
-  const enforcement = await enforceMinimumAttendance(sessionId);
+  const enforcement = await enforceMinimumAttendance(sessionId, tx);
   if (enforcement.cancelled) {
     report.sessionCancelled = true;
     if (enforcement.reason) report.reasons.push(enforcement.reason);
@@ -275,11 +286,17 @@ export async function adjustForAbsence(
 
 /**
  * Determine whether a session is still within the self-cancel window.
- * Cutoff: previous day 23:59 (local time of the server).
+ * Cutoff: previous day 23:59:59 JST (Asia/Tokyo).
+ * Uses JST-fixed calculation so Vercel (UTC) and local (JST) produce identical results.
  */
 export function canSelfCancel(sessionDate: Date, now: Date = new Date()): boolean {
-  const cutoff = new Date(sessionDate);
-  cutoff.setHours(0, 0, 0, 0);
-  cutoff.setMinutes(cutoff.getMinutes() - 1); // = previous day 23:59
+  // Convert sessionDate to JST date string (YYYY-MM-DD format)
+  const jstDateStr = sessionDate.toLocaleDateString('en-CA', { timeZone: 'Asia/Tokyo' });
+  // Session midnight JST = sessionDate's date at 00:00:00 JST
+  const sessionMidnightJST = new Date(`${jstDateStr}T00:00:00+09:00`);
+  // Cutoff = previous day 23:59:59 JST = session midnight JST - 1 second
+  const cutoff = new Date(sessionMidnightJST.getTime() - 1000);
+
+  // Both cutoff and now are absolute UTC timestamps, safe to compare
   return now <= cutoff;
 }

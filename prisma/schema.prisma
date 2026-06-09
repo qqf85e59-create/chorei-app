@@ -15,6 +15,7 @@ model User {
   email     String?  @unique
   password  String
   role      String   @default("member")
+  lunchStatus String @default("active")
   createdAt DateTime @default(now())
   speakerSessions     Session[]        @relation("SessionSpeaker")
   commentatorSessions Session[]        @relation("SessionCommentators")
@@ -22,6 +23,17 @@ model User {
   absenceRequests   AbsenceRequest[]
   commentatorViews  CommentatorView[]
   configHistories   ConfigHistory[]  @relation("ConfigHistoryChangedBy")
+  notifications     Notification[]
+
+  // Lunch feature relations
+  organizedLunches    LunchEvent[]        @relation("LunchOrganizer")
+  lunchParticipations Participation[]
+  scheduleResponses   ScheduleResponse[]
+  surveyResponses     SurveyResponse[]
+  favoriteRestaurants FavoriteRestaurant[]
+  exclusionsMade      ExclusionLog[]      @relation("excludedBy")
+  exclusionTarget     ExclusionLog[]      @relation("excludedUser")
+  lunchComments       LunchComment[]
 }
 
 model Phase {
@@ -70,6 +82,7 @@ model Session {
   attendances      Attendance[]
   absenceRequests  AbsenceRequest[]
   commentatorViews CommentatorView[]
+  notifications    Notification[]
 }
 
 model Attendance {
@@ -93,9 +106,24 @@ model AbsenceRequest {
   type        String
   requestedAt DateTime @default(now())
   note        String?
+  originalSpeaker          Boolean  @default(false)
+  previousAttendanceStatus String?
 
   user    User    @relation(fields: [userId], references: [id])
   session Session @relation(fields: [sessionId], references: [id])
+}
+
+model Notification {
+  id        Int       @id @default(autoincrement())
+  userId    String
+  sessionId Int?
+  type      String
+  message   String
+  createdAt DateTime  @default(now())
+  readAt    DateTime?
+
+  user    User     @relation(fields: [userId], references: [id])
+  session Session? @relation(fields: [sessionId], references: [id])
 }
 
 model Holiday {
@@ -136,4 +164,145 @@ model CommentatorView {
   session Session @relation(fields: [sessionId], references: [id])
 
   @@unique([userId, sessionId])
+}
+
+// ============================================
+// LUNCH APP INTEGRATION MODELS
+// ============================================
+
+model LunchEvent {
+  id              Int           @id @default(autoincrement())
+  title           String        // 例："2026年6月ランチ会"
+  organizerId     String
+  organizer       User          @relation("LunchOrganizer", fields: [organizerId], references: [id])
+  status          String        // "planning" | "scheduled" | "completed" | "cancelled"
+  confirmedDate   DateTime?
+  restaurantId    Int?
+  restaurant      Restaurant?   @relation(fields: [restaurantId], references: [id])
+  totalCost       Int?
+  createdAt       DateTime      @default(now())
+  
+  participants    Participation[]
+  scheduleCandidates ScheduleCandidate[]
+  surveyResponses SurveyResponse[]
+  exclusionLogs   ExclusionLog[]
+  comments        LunchComment[]
+  photos          LunchPhoto[]
+  settlements     Settlement[]
+}
+
+model Participation {
+  id          Int       @id @default(autoincrement())
+  eventId     Int
+  event       LunchEvent @relation(fields: [eventId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  isOrganizer Boolean   @default(false)
+  
+  @@unique([eventId, userId])
+}
+
+model ScheduleCandidate {
+  id          Int       @id @default(autoincrement())
+  eventId     Int
+  event       LunchEvent @relation(fields: [eventId], references: [id])
+  candidateDate DateTime
+  note        String?
+  responses   ScheduleResponse[]
+}
+
+model ScheduleResponse {
+  id          Int       @id @default(autoincrement())
+  candidateId Int
+  candidate   ScheduleCandidate @relation(fields: [candidateId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  response    String    // "○" | "△" | "×"
+  
+  @@unique([candidateId, userId])
+}
+
+model SurveyResponse {
+  id          Int       @id @default(autoincrement())
+  eventId     Int
+  event       LunchEvent @relation(fields: [eventId], references: [id])
+  userId      String
+  user        User      @relation(fields: [userId], references: [id])
+  genres      String    // JSON配列: ["和食","洋食"]
+  area        String?
+  budget      String?   // "〜1000" | "1000〜1500" | "1500〜2000" | "2000〜"
+  
+  @@unique([eventId, userId])
+}
+
+model Restaurant {
+  id          Int       @id @default(autoincrement())
+  name        String
+  genre       String
+  area        String?
+  address     String?
+  phone       String?
+  url         String?
+  mapUrl      String?
+  visitCount  Int       @default(0)
+  lastVisited DateTime?
+  createdAt   DateTime  @default(now())
+  
+  events      LunchEvent[]
+  favorites   FavoriteRestaurant[]
+}
+
+model FavoriteRestaurant {
+  id            Int       @id @default(autoincrement())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  restaurantId  Int
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id])
+  comment       String?
+  createdAt     DateTime  @default(now())
+  
+  @@unique([userId, restaurantId])
+}
+
+model ExclusionLog {
+  id              Int       @id @default(autoincrement())
+  eventId         Int
+  event           LunchEvent @relation(fields: [eventId], references: [id])
+  excludedUserId  String
+  excludedUser    User      @relation("excludedUser", fields: [excludedUserId], references: [id])
+  excludedById    String
+  excludedBy      User      @relation("excludedBy", fields: [excludedById], references: [id])
+  reason          String?
+  createdAt       DateTime  @default(now())
+}
+
+model Settlement {
+  id          Int       @id @default(autoincrement())
+  eventId     Int
+  event       LunchEvent @relation(fields: [eventId], references: [id])
+  payerId     String
+  totalAmount Int
+  perPerson   Int
+  status      String    // "unpaid" | "paid"
+  note        String?
+  createdAt   DateTime  @default(now())
+}
+
+model LunchComment {
+  id        Int       @id @default(autoincrement())
+  eventId   Int
+  event     LunchEvent @relation(fields: [eventId], references: [id])
+  userId    String
+  user      User      @relation(fields: [userId], references: [id])
+  content   String
+  createdAt DateTime  @default(now())
+}
+
+model LunchPhoto {
+  id        Int       @id @default(autoincrement())
+  eventId   Int
+  event     LunchEvent @relation(fields: [eventId], references: [id])
+  url       String
+  caption   String?
+  createdAt DateTime  @default(now())
 }

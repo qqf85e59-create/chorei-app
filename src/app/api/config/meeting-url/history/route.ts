@@ -4,10 +4,18 @@ import { CONFIG_KEYS, getConfigHistory } from '@/lib/config';
 
 // GET /api/config/meeting-url/history - Admin only
 export async function GET() {
-  const session = await auth();
-  if (!session || (session.user as { role: string }).role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  try {
+    const session = await auth();
+    if (!session || session.user.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const history = await getConfigHistory(CONFIG_KEYS.MEETING_URL, 100);
+    return NextResponse.json(history);
+  } catch (err) {
+    console.error('[GET /api/config/meeting-url/history]', err);
+    return NextResponse.json(
+      { error: 'Internal Server Error', detail: (err as Error).message },
+      { status: 500 }
+    );
   }
-  const history = await getConfigHistory(CONFIG_KEYS.MEETING_URL, 100);
-  return NextResponse.json(history);
 }

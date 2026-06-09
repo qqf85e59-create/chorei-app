@@ -1,6 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
+
+const POLL_INTERVAL = 30_000;
 import {
   Card,
   CardContent,
@@ -42,9 +44,14 @@ export function NextCommentatorsCard() {
   const [data, setData] = useState<NextCommentatorsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [marking, setMarking] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     fetchData();
+    timerRef.current = setInterval(fetchData, POLL_INTERVAL);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
   async function fetchData() {
@@ -93,7 +100,7 @@ export function NextCommentatorsCard() {
   const formatted = `${date.getMonth() + 1}月${date.getDate()}日（${DAY_LABELS[date.getDay()]}）`;
 
   const highlightClass = data.changed
-    ? 'border-[#3B82F6] bg-blue-50/60 ring-1 ring-[#3B82F6]/30'
+    ? 'border-[#0070CC] bg-[#EBF5FF]/60 ring-1 ring-[#0070CC]/30'
     : 'border-brand-border';
 
   return (
@@ -103,12 +110,9 @@ export function NextCommentatorsCard() {
           <div>
             <CardTitle className="text-base text-brand-primary flex items-center gap-2">
               <Users className="h-5 w-5" />
-              次回の応答者（暫定）
-              <Badge variant="outline" className="border-[#3B82F6]/40 text-[#3B82F6] bg-white">
-                暫定
-              </Badge>
+              次回の応答者
               {data.changed && (
-                <Badge className="bg-[#3B82F6] hover:bg-[#3B82F6]/90 text-white">
+                <Badge className="bg-[#0070CC] hover:bg-[#0070CC]/90 text-white">
                   変更あり
                 </Badge>
               )}
@@ -124,16 +128,16 @@ export function NextCommentatorsCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex items-start gap-2 rounded-lg bg-blue-50/80 border border-[#3B82F6]/20 p-2.5 text-xs text-brand-primary">
+        <div className="flex items-start gap-2 rounded-lg bg-[#EBF5FF]/80 border border-[#0070CC]/20 p-2.5 text-xs text-brand-primary">
           <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
           <span>
-            変動の可能性あり（欠席申請等により再抽選される場合があります）
+            欠席申請があった場合は自動的に代わりの応答者が割り当てられます
           </span>
         </div>
 
         <div>
           <div className="text-xs text-muted-foreground mb-1.5">
-            応答者（{s.commentators.length}名）
+            応答者
           </div>
           <div className="flex flex-wrap gap-1.5">
             {s.commentators.length === 0 ? (
@@ -143,7 +147,7 @@ export function NextCommentatorsCard() {
                 <Badge
                   key={c.id}
                   variant="outline"
-                  className="border-[#3B82F6]/40 bg-white text-brand-text"
+                  className="border-[#0070CC]/40 bg-white text-brand-text"
                 >
                   {c.name}
                 </Badge>
@@ -159,7 +163,7 @@ export function NextCommentatorsCard() {
               variant="outline"
               onClick={handleMarkViewed}
               disabled={marking}
-              className="border-[#3B82F6] text-[#3B82F6] hover:bg-[#3B82F6] hover:text-white"
+              className="border-[#0070CC] text-[#0070CC] hover:bg-[#0070CC] hover:text-white"
             >
               <CheckCircle2 className="h-4 w-4 mr-1" />
               {marking ? '処理中...' : '既読'}
