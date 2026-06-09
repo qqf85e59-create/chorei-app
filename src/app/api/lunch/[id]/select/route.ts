@@ -47,47 +47,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     );
 
     // 5. Save results to Participation table (clear previous if any)
-    await prisma.$transaction(async (tx) => {
-      // Clear old participations for this event
-      await tx.participation.deleteMany({
-        where: { eventId }
-      });
+    //    Neon serverless on Vercel はインタラクティブtrxを安定維持できず500になるため、
+    //    $transaction(async tx) を使わず prisma で逐次実行する。
+    // Clear old participations for this event
+    await prisma.participation.deleteMany({
+      where: { eventId }
+    });
 
-      // Add organizer
-      await tx.participation.create({
+    // Add organizer
+    await prisma.participation.create({
+      data: {
+        eventId,
+        userId: event.organizerId,
+        isOrganizer: true
+      }
+    });
+
+    // Add selected staff
+    for (const user of selectedMembers) {
+      await prisma.participation.create({
         data: {
           eventId,
-          userId: event.organizerId,
-          isOrganizer: true
+          userId: user.id,
+          isOrganizer: false
         }
       });
+    }
 
-      // Add selected staff
-      for (const user of selectedMembers) {
-        await tx.participation.create({
+    // Record arbitrary exclusions if provided
+    if (excludedMemberIds.length > 0) {
+      const organizer = await prisma.user.findUnique({ where: { email: session.user?.email as string } });
+      for (const excludedId of excludedMemberIds) {
+        await prisma.exclusionLog.create({
           data: {
             eventId,
-            userId: user.id,
-            isOrganizer: false
+            excludedUserId: excludedId,
+            excludedById: organizer!.id,
+            reason: "当回の手動除外（ランダム選定時）"
           }
         });
       }
-
-      // Record arbitrary exclusions if provided
-      if (excludedMemberIds.length > 0) {
-        const organizer = await tx.user.findUnique({ where: { email: session.user?.email as string } });
-        for (const excludedId of excludedMemberIds) {
-          await tx.exclusionLog.create({
-            data: {
-              eventId,
-              excludedUserId: excludedId,
-              excludedById: organizer!.id,
-              reason: "当回の手動除外（ランダム選定時）"
-            }
-          });
-        }
-      }
-    });
+    }
 
     return NextResponse.json({ success: true, selectedMembers });
   } catch (error) {

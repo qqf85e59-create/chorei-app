@@ -55,45 +55,43 @@ export async function GET(request: Request) {
 
     const results: Array<Record<string, unknown>> = [];
 
+    // Neon serverless on Vercel はインタラクティブtrxを安定維持できず500になるため、
+    // $transaction(async tx) を使わず prisma で逐次実行する（ヘルパは prisma を受け取れる）。
     for (const s of todays) {
-      const outcome = await prisma.$transaction(async (tx) => {
-        const r = {
-          sessionId: s.id,
-          phase: s.phase.phaseNumber,
-          speakerReflowed: false,
-          commentatorsFinalised: false,
-          cancelled: false,
-        };
+      const r = {
+        sessionId: s.id,
+        phase: s.phase.phaseNumber,
+        speakerReflowed: false,
+        commentatorsFinalised: false,
+        cancelled: false,
+      };
 
-        const unavailable = await getUnavailableUserIds(s.id, tx);
+      const unavailable = await getUnavailableUserIds(s.id, prisma);
 
-        // 1) Speaker absent → reflow successors forward for the remaining phase.
-        if (s.speakerId && unavailable.has(s.speakerId)) {
-          await reflowSpeakers(s.phaseId, s.date, tx);
-          r.speakerReflowed = true;
+      // 1) Speaker absent → reflow successors forward for the remaining phase.
+      if (s.speakerId && unavailable.has(s.speakerId)) {
+        await reflowSpeakers(s.phaseId, s.date, prisma);
+        r.speakerReflowed = true;
+      }
+
+      // 2) Phase 2/3 → lock in respondents, dropping any absentees.
+      if (s.phase.phaseNumber !== 1) {
+        const hasUnavailableCommentator = s.commentators.some((c) => unavailable.has(c.id));
+        if (!s.commentatorsPreset || hasUnavailableCommentator) {
+          await reselectCommentators(s.id, prisma);
+          await prisma.session.update({
+            where: { id: s.id },
+            data: { commentatorsPreset: true },
+          });
+          r.commentatorsFinalised = true;
         }
+      }
 
-        // 2) Phase 2/3 → lock in respondents, dropping any absentees.
-        if (s.phase.phaseNumber !== 1) {
-          const hasUnavailableCommentator = s.commentators.some((c) => unavailable.has(c.id));
-          if (!s.commentatorsPreset || hasUnavailableCommentator) {
-            await reselectCommentators(s.id, tx);
-            await tx.session.update({
-              where: { id: s.id },
-              data: { commentatorsPreset: true },
-            });
-            r.commentatorsFinalised = true;
-          }
-        }
+      // 3) Enforce minimum attendance (may auto-cancel).
+      const enforcement = await enforceMinimumAttendance(s.id, prisma);
+      if (enforcement.cancelled) r.cancelled = true;
 
-        // 3) Enforce minimum attendance (may auto-cancel).
-        const enforcement = await enforceMinimumAttendance(s.id, tx);
-        if (enforcement.cancelled) r.cancelled = true;
-
-        return r;
-      });
-
-      results.push(outcome);
+      results.push(r);
     }
 
     return NextResponse.json({

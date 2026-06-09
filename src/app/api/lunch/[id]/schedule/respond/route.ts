@@ -28,26 +28,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    await prisma.$transaction(async (tx) => {
-      for (const res of responses) {
-        await tx.scheduleResponse.upsert({
-          where: {
-            candidateId_userId: {
-              candidateId: res.candidateId,
-              userId: userId
-            }
-          },
-          update: {
-            response: res.response
-          },
-          create: {
+    // Neon serverless 互換: インタラクティブtrxを避け逐次upsert
+    for (const res of responses) {
+      await prisma.scheduleResponse.upsert({
+        where: {
+          candidateId_userId: {
             candidateId: res.candidateId,
-            userId: userId,
-            response: res.response
+            userId: userId
           }
-        });
-      }
-    });
+        },
+        update: {
+          response: res.response
+        },
+        create: {
+          candidateId: res.candidateId,
+          userId: userId,
+          response: res.response
+        }
+      });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

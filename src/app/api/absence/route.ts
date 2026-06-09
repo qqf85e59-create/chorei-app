@@ -176,20 +176,19 @@ export async function DELETE(request: Request) {
     const restoreStatus = req.previousAttendanceStatus || 'present';
     let cascadeReversed = false;
 
-    // Atomically: remove the absence, restore attendance, then reflow speakers so
-    // the now-available user flows back into the rotation (反映の取消し).
-    await prisma.$transaction(async (tx) => {
-      await tx.absenceRequest.delete({ where: { id } });
-      await tx.attendance.updateMany({
-        where: { sessionId: req.sessionId, userId: req.userId },
-        data: { status: restoreStatus, reportedAt: new Date() },
-      });
-      // Reflow only matters when the cancelled absence affected the speaker rotation.
-      if (req.originalSpeaker) {
-        await reflowSpeakers(req.session.phaseId, req.session.date, tx);
-        cascadeReversed = true;
-      }
+    // Neon serverless 互換: インタラクティブtrxを避け逐次実行する。
+    // remove the absence, restore attendance, then reflow speakers so the now-available
+    // user flows back into the rotation (反映の取消し).
+    await prisma.absenceRequest.delete({ where: { id } });
+    await prisma.attendance.updateMany({
+      where: { sessionId: req.sessionId, userId: req.userId },
+      data: { status: restoreStatus, reportedAt: new Date() },
     });
+    // Reflow only matters when the cancelled absence affected the speaker rotation.
+    if (req.originalSpeaker) {
+      await reflowSpeakers(req.session.phaseId, req.session.date, prisma);
+      cascadeReversed = true;
+    }
 
     return NextResponse.json({
       ok: true,
