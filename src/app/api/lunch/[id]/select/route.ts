@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/api-auth";
 import { selectParticipants } from "@/lib/selectionAlgorithm";
+import { getLunchParticipantCount } from "@/lib/config";
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -36,12 +37,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       }
     });
 
-    // 4. Run selection algorithm
+    // 4. Run selection algorithm (人数はマスター設定 Config から取得)
+    const selectCount = await getLunchParticipantCount();
     const selectedMembers = selectParticipants(
       activeStaff,
       excludedMemberIds,
       previousParticipantIds,
-      3 // Number of staff to select
+      selectCount
     );
 
     // 5. Save results to Participation table (clear previous if any)

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Users, Plus, Pencil, Trash2, IdCard, Briefcase } from 'lucide-react';
+import { Users, Plus, Pencil, Trash2, IdCard, Briefcase, Utensils } from 'lucide-react';
 import { GRADE_LABELS, GRADE_ORDER, JOB_CODE_ORDER, JOB_LABELS } from '@/lib/constants';
 import { toast } from 'sonner';
 
@@ -36,13 +36,42 @@ export default function MembersPage() {
   const [form, setForm] = useState<FormData>({ name:'', grade:GRADE_ORDER[0], email:'', role:'member', lunchRole:'participant', password:'', lunchStatus:'active', choreiStatus:'active', employeeNumber:'', kana:'', jobCode:'c', jobTitle:'' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // ランチ選定人数（マスター設定）
+  const [lunchCount, setLunchCount] = useState<string>('3');
+  const [savingCount, setSavingCount] = useState(false);
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => { fetchUsers(); fetchLunchCount(); }, []);
 
   async function fetchUsers() {
     try { setUsers(await (await fetch('/api/users')).json()); }
     catch (e) { console.error(e); }
     finally { setLoading(false); }
+  }
+
+  async function fetchLunchCount() {
+    try {
+      const res = await fetch('/api/config/lunch-count');
+      if (res.ok) { const d = await res.json(); setLunchCount(String(d.count)); }
+    } catch (e) { console.error(e); }
+  }
+
+  async function saveLunchCount() {
+    setSavingCount(true);
+    try {
+      const res = await fetch('/api/config/lunch-count', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ count: parseInt(lunchCount, 10) }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || '保存に失敗しました');
+      const d = await res.json();
+      setLunchCount(String(d.count));
+      toast.success(`ランチ選定人数を${d.count}名に設定しました`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '保存に失敗しました');
+    } finally {
+      setSavingCount(false);
+    }
   }
 
   function openCreate() {
@@ -126,9 +155,30 @@ export default function MembersPage() {
           ))}
         </div>
 
+        {/* ランチ選定人数（マスター設定） */}
+        <div className="mb-6 bg-white border border-[#E0E4EF] rounded-xl p-4 shadow-[0_2px_8px_rgba(0,19,93,0.05)] flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 mr-auto">
+            <Utensils className="h-4 w-4 text-[#0070CC]" />
+            <div>
+              <p className="text-sm font-bold text-[#00135D]">ランチ選定人数</p>
+              <p className="text-[11px] text-muted-foreground">主催者を除き、毎回ランダム抽選するメンバーの人数</p>
+            </div>
+          </div>
+          <Input
+            type="number" min={1} max={20} value={lunchCount}
+            onChange={e => setLunchCount(e.target.value)}
+            className="w-20 h-9 text-sm text-center border-[#E0E4EF]"
+          />
+          <span className="text-sm text-muted-foreground">名</span>
+          <Button onClick={saveLunchCount} disabled={savingCount}
+            className="bg-[#00135D] hover:bg-[#1E3A8A] text-white rounded-lg h-9">
+            {savingCount ? '保存中…' : '保存'}
+          </Button>
+        </div>
+
         {/* Table */}
         <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-          
+
           {/* Mobile Cards */}
           <div className="sm:hidden divide-y divide-[#E0E4EF]">
             {users.map(user => (
