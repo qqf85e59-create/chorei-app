@@ -1,16 +1,26 @@
 // Grade display names and sort order
-export const GRADE_ORDER = ['E2a', 'E2b', 'E3a', 'E3b', 'E3c', 'E4', 'E4p', 'E5', 'E6'] as const;
+export const GRADE_ORDER = ['2', '3', '3+', '4', '4+', '5', '6', '7'] as const;
 
 export const GRADE_LABELS: Record<string, string> = {
-  E2a: '等級2a',
-  E2b: '等級2b',
-  E3a: '等級3a',
-  E3b: '等級3b',
-  E3c: '等級3c',
-  E4:  '等級4',
-  E4p: '等級4+',
-  E5:  '等級5',
-  E6:  '等級6',
+  '2': '等級2',
+  '3': '等級3',
+  '3+': '等級3+',
+  '4': '等級4',
+  '4+': '等級4+',
+  '5': '等級5',
+  '6': '等級6',
+  '7': '等級7',
+};
+
+// 職種コード（昇順）
+export const JOB_CODE_ORDER = ['a', 'c', 'mc', 'm', 'e'] as const;
+
+export const JOB_LABELS: Record<string, string> = {
+  a: 'アナリスト',
+  c: 'コンサルタント',
+  mc: 'マネージングコンサルタント',
+  m: 'マネージャー',
+  e: 'エキスパート',
 };
 
 // Session days: Tue=2, Thu=4, Fri=5

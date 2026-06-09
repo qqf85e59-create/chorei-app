@@ -31,6 +31,12 @@ model User {
   @@index([deletedAt])
 
   // Lunch feature relations
+  lunchRole      String  @default("participant")
+  employeeNumber String? @unique
+  kana           String?
+  jobCode        String?
+  jobTitle       String?
+  
   organizedLunches    LunchEvent[]        @relation("LunchOrganizer")
   lunchParticipations Participation[]
   scheduleResponses   ScheduleResponse[]
@@ -39,6 +45,8 @@ model User {
   exclusionsMade      ExclusionLog[]      @relation("excludedBy")
   exclusionTarget     ExclusionLog[]      @relation("excludedUser")
   lunchComments       LunchComment[]
+
+  @@index([lunchRole])
 }
 
 model Phase {

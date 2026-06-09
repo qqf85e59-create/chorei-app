@@ -33,7 +33,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     // 3. Get all active staff members
     const activeStaff = await prisma.user.findMany({
-      where: { lunchStatus: 'active', role: 'member', deletedAt: null }
+      where: { 
+        lunchStatus: 'active',
+        lunchRole: 'participant',
+        deletedAt: null
+      }
     });
 
     // 4. Run selection algorithm

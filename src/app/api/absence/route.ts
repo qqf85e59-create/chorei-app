@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 import { adjustForAbsence, canSelfCancel, reflowSpeakers } from '@/lib/absence-logic';
 
 // POST /api/absence - Create an absence request (+ auto-adjust schedule)
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const body = await request.json();
     const { sessionId, type, note } = body;
@@ -106,10 +103,7 @@ export async function POST(request: Request) {
 // GET /api/absence - List absence requests
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
@@ -147,10 +141,7 @@ export async function GET(request: Request) {
 // DELETE /api/absence?id=xxx - Self-cancel absence declaration before previous day 23:59 JST
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const { searchParams } = new URL(request.url);
     const idParam = searchParams.get('id');

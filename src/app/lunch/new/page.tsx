@@ -18,9 +18,13 @@ export default async function NewLunchPage() {
     include: { organizer: true }
   });
 
-  // 主催者一覧を取得
+  // 主催者(当番)候補を取得
   const organizers = await prisma.user.findMany({
-    where: { role: 'admin', deletedAt: null }
+    where: { 
+      lunchRole: 'organizer',
+      deletedAt: null 
+    },
+    orderBy: { createdAt: 'asc' }
   });
 
   // 篠原(Shinohara)と水谷(Mizutani)の交代ロジック

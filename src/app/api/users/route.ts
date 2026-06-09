@@ -18,6 +18,11 @@ export async function GET() {
           grade: true,
           email: true,
           role: true,
+          lunchRole: true,
+          employeeNumber: true,
+          kana: true,
+          jobCode: true,
+          jobTitle: true,
           lunchStatus: true,
           choreiStatus: true,
           createdAt: true,
@@ -49,7 +54,7 @@ export async function POST(request: Request) {
     await requireAdmin();
 
   const body = await request.json();
-  const { name, grade, email, role, password, lunchStatus, choreiStatus } = body;
+  const { name, grade, email, role, password, lunchStatus, choreiStatus, lunchRole, employeeNumber, kana, jobCode, jobTitle } = body;
 
   const hashedPassword = await bcrypt.hash(password || 'chorei2026', 10);
 
@@ -59,6 +64,11 @@ export async function POST(request: Request) {
       grade,
       email,
       role: role || 'member',
+      lunchRole: lunchRole || 'participant',
+      employeeNumber: employeeNumber || null,
+      kana: kana || null,
+      jobCode: jobCode || null,
+      jobTitle: jobTitle || null,
       lunchStatus: lunchStatus || 'active',
       choreiStatus: choreiStatus || 'active',
       password: hashedPassword,
@@ -69,6 +79,11 @@ export async function POST(request: Request) {
       grade: true,
       email: true,
       role: true,
+      lunchRole: true,
+      employeeNumber: true,
+      kana: true,
+      jobCode: true,
+      jobTitle: true,
       lunchStatus: true,
       createdAt: true,
     },
@@ -100,6 +115,11 @@ export async function PUT(request: Request) {
         grade: true,
         email: true,
         role: true,
+        lunchRole: true,
+        employeeNumber: true,
+        kana: true,
+        jobCode: true,
+        jobTitle: true,
         lunchStatus: true,
         choreiStatus: true,
         createdAt: true,

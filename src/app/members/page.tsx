@@ -10,17 +10,19 @@ import { Label } from '@/components/ui/label';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { Users, Plus, Pencil, Trash2 } from 'lucide-react';
-import { GRADE_LABELS, GRADE_ORDER } from '@/lib/constants';
+import { Users, Plus, Pencil, Trash2, IdCard, Briefcase } from 'lucide-react';
+import { GRADE_LABELS, GRADE_ORDER, JOB_CODE_ORDER, JOB_LABELS } from '@/lib/constants';
 import { toast } from 'sonner';
 
 interface UserData {
   id: string; name: string; grade: string;
-  email: string | null; role: string; lunchStatus: string; choreiStatus: string; createdAt: string;
+  email: string | null; role: string; lunchRole: string; lunchStatus: string; choreiStatus: string; createdAt: string;
+  employeeNumber: string | null; kana: string | null; jobCode: string | null; jobTitle: string | null;
 }
 
 interface FormData {
-  name: string; grade: string; email: string; role: string; password: string; lunchStatus: string; choreiStatus: string;
+  name: string; grade: string; email: string; role: string; lunchRole: string; password: string; lunchStatus: string; choreiStatus: string;
+  employeeNumber: string; kana: string; jobCode: string; jobTitle: string;
 }
 
 export default function MembersPage() {
@@ -30,7 +32,7 @@ export default function MembersPage() {
   const [editUser, setEditUser] = useState<UserData | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [modal, setModal] = useState(false);
-  const [form, setForm] = useState<FormData>({ name:'', grade:'E3a', email:'', role:'member', password:'', lunchStatus:'active', choreiStatus:'active' });
+  const [form, setForm] = useState<FormData>({ name:'', grade:GRADE_ORDER[0], email:'', role:'member', lunchRole:'participant', password:'', lunchStatus:'active', choreiStatus:'active', employeeNumber:'', kana:'', jobCode:'c', jobTitle:'' });
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -44,12 +46,12 @@ export default function MembersPage() {
 
   function openCreate() {
     setIsCreating(true); setEditUser(null);
-    setForm({ name:'', grade:GRADE_ORDER[0], email:'', role:'member', password:'chorei2026', lunchStatus:'active', choreiStatus:'active' });
+    setForm({ name:'', grade:GRADE_ORDER[0], email:'', role:'member', lunchRole:'participant', password:'chorei2026', lunchStatus:'active', choreiStatus:'active', employeeNumber:'', kana:'', jobCode:'c', jobTitle:'' });
     setModal(true);
   }
   function openEdit(user: UserData) {
     setIsCreating(false); setEditUser(user);
-    setForm({ name:user.name, grade:user.grade, email:user.email||'', role:user.role, password:'', lunchStatus:user.lunchStatus||'active', choreiStatus:user.choreiStatus||'active' });
+    setForm({ name:user.name, grade:user.grade, email:user.email||'', role:user.role, lunchRole:user.lunchRole||'participant', password:'', lunchStatus:user.lunchStatus||'active', choreiStatus:user.choreiStatus||'active', employeeNumber:user.employeeNumber||'', kana:user.kana||'', jobCode:user.jobCode||'', jobTitle:user.jobTitle||'' });
     setModal(true);
   }
   async function handleSave() {
@@ -137,7 +139,9 @@ export default function MembersPage() {
                     </div>
                     <div>
                       <span className="text-sm font-semibold text-[#1A1D23]">{user.name}</span>
-                      <p className="text-xs text-muted-foreground mt-0.5">{user.email || '—'}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5 flex gap-2">
+                        {user.jobCode && <span>{JOB_LABELS[user.jobCode]}</span>}
+                      </p>
                     </div>
                   </div>
                   <div className="flex gap-1.5 items-center">
@@ -183,7 +187,7 @@ export default function MembersPage() {
             <table className="w-full border-collapse">
               <thead>
                 <tr className="bg-[#F8F9FC] border-b border-[#E0E4EF]">
-                  {['名前','等級','メールアドレス','権限','朝礼参加','ランチ参加','操作'].map(h => (
+                  {['社員番号','名前','フリガナ','職種','等級','権限/主催','参加状態','操作'].map(h => (
                     <th key={h} className="px-5 py-3 text-left text-xs font-bold text-[#00135D] whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
@@ -191,36 +195,48 @@ export default function MembersPage() {
               <tbody>
                 {users.map((user, i) => (
                   <tr key={user.id} className={`border-b border-[#E0E4EF] ${i%2===0?'bg-white':'bg-[#F8F9FC]'} hover:bg-[#F0F7FF] transition-colors`}>
+                    <td className="px-5 py-3 text-xs text-muted-foreground">{user.employeeNumber || '—'}</td>
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-[#00135D]/10 flex items-center justify-center text-xs font-bold text-[#00135D] shrink-0">
                           {user.name[0]}
                         </div>
-                        <span className="text-sm font-semibold text-[#1A1D23]">{user.name}</span>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-[#1A1D23]">{user.name}</span>
+                          <span className="text-xs text-muted-foreground">{user.email || '—'}</span>
+                        </div>
                       </div>
+                    </td>
+                    <td className="px-5 py-3 text-xs text-muted-foreground">{user.kana || '—'}</td>
+                    <td className="px-5 py-3 text-xs text-muted-foreground">
+                      {user.jobCode ? `${JOB_LABELS[user.jobCode]}${user.jobTitle ? ` (${user.jobTitle})` : ''}` : '—'}
                     </td>
                     <td className="px-5 py-3">
                       <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-xs">
                         {GRADE_LABELS[user.grade] || user.grade}
                       </Badge>
                     </td>
-                    <td className="px-5 py-3 text-xs text-muted-foreground">{user.email || '—'}</td>
-                    <td className="px-5 py-3">
+                    <td className="px-5 py-3 flex flex-col gap-1">
                       <Badge className={user.role==='admin'
-                        ? 'bg-[#00135D]/10 text-[#00135D] border-[#00135D]/20 text-xs'
-                        : 'bg-[#F5F7FA] text-muted-foreground border-[#E0E4EF] text-xs'}>
+                        ? 'bg-[#00135D]/10 text-[#00135D] border-[#00135D]/20 text-xs w-max'
+                        : 'bg-[#F5F7FA] text-muted-foreground border-[#E0E4EF] text-xs w-max'}>
                         {user.role==='admin'?'運営':'参加者'}
                       </Badge>
-                    </td>
-                    <td className="px-5 py-3">
-                      <Badge className={user.choreiStatus==='active'?'bg-blue-100 text-blue-700 border-blue-200 text-xs':'bg-gray-100 text-gray-500 border-gray-200 text-xs'}>
-                        {user.choreiStatus==='active'?'参加':'不参加'}
+                      <Badge className={user.lunchRole==='organizer'
+                        ? 'bg-orange-100 text-orange-800 border-orange-200 text-xs w-max'
+                        : 'bg-gray-100 text-gray-500 border-gray-200 text-xs w-max'}>
+                        {user.lunchRole==='organizer'?'ランチ当番':'ランチ参加'}
                       </Badge>
                     </td>
                     <td className="px-5 py-3">
-                      <Badge className={user.lunchStatus==='active'?'bg-green-100 text-green-700 border-green-200 text-xs':'bg-gray-100 text-gray-500 border-gray-200 text-xs'}>
-                        {user.lunchStatus==='active'?'参加':'不参加'}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge className={user.choreiStatus==='active'?'bg-blue-100 text-blue-700 border-blue-200 text-xs w-max':'bg-gray-100 text-gray-500 border-gray-200 text-xs w-max'}>
+                          朝礼:{user.choreiStatus==='active'?'○':'×'}
+                        </Badge>
+                        <Badge className={user.lunchStatus==='active'?'bg-green-100 text-green-700 border-green-200 text-xs w-max':'bg-gray-100 text-gray-500 border-gray-200 text-xs w-max'}>
+                          ランチ:{user.lunchStatus==='active'?'○':'×'}
+                        </Badge>
+                      </div>
                     </td>
                     <td className="px-5 py-3">
                       <div className="flex gap-1.5 items-center">
@@ -268,7 +284,10 @@ export default function MembersPage() {
             <div className="p-6 flex flex-col gap-4">
               {[
                 { label:'名前', key:'name', type:'text', placeholder:'山田 太郎' },
+                { label:'フリガナ', key:'kana', type:'text', placeholder:'ヤマダ タロウ' },
                 { label:'メールアドレス', key:'email', type:'email', placeholder:'example@attax.co.jp' },
+                { label:'社員番号', key:'employeeNumber', type:'text', placeholder:'1234' },
+                { label:'職種名称', key:'jobTitle', type:'text', placeholder:'コンサルタント' },
               ].map(({ label, key, type, placeholder }) => (
                 <div key={key}>
                   <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">{label}</Label>
@@ -277,6 +296,15 @@ export default function MembersPage() {
                     className="border-[#E0E4EF] text-sm h-9 focus:border-[#0070CC] focus:ring-[#0070CC]/20" />
                 </div>
               ))}
+              <div>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">職種区分</Label>
+                <Select value={form.jobCode} onValueChange={v => setForm({ ...form, jobCode: v || '' })}>
+                  <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {JOB_CODE_ORDER.map(c => <SelectItem key={c} value={c}>{JOB_LABELS[c]}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
               <div>
                 <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">等級</Label>
                 <Select value={form.grade} onValueChange={v => setForm({ ...form, grade: v || '' })}>
@@ -287,12 +315,22 @@ export default function MembersPage() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">権限</Label>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">朝礼運営権限</Label>
                 <Select value={form.role} onValueChange={v => setForm({ ...form, role: v || '' })}>
                   <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="member">参加者</SelectItem>
+                    <SelectItem value="member">一般メンバー</SelectItem>
                     <SelectItem value="admin">運営</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">ランチ主催者（当番）</Label>
+                <Select value={form.lunchRole} onValueChange={v => setForm({ ...form, lunchRole: v || '' })}>
+                  <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="participant">一般参加者（抽選対象）</SelectItem>
+                    <SelectItem value="organizer">主催者（当番専用・抽選除外）</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

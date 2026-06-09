@@ -1,14 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 
 export async function POST(req: Request) {
   try {
-    const session = await auth();
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireAdmin();
 
     const body = await req.json();
     const { title, organizerId } = body;
@@ -34,10 +31,7 @@ export async function POST(req: Request) {
 
 export async function GET(req: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const url = new URL(req.url);
     const statusParam = url.searchParams.get("status");

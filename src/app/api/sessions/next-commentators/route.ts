@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 // GET /api/sessions/next-commentators
 // Returns the next scheduled session (future, status=scheduled) with its commentators,
@@ -10,10 +10,7 @@ import { auth } from '@/lib/auth';
 // (/api/cron/daily-finalize), not lazily on read. Until then the UI shows 「未確定」.
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     // Today at 00:00 - include today's session if not yet done
     const todayStart = new Date();

@@ -46,7 +46,12 @@ export default async function LunchManagementPage({ params }: { params: Promise<
 
   // メンバー選定用のアクティブスタッフ一覧
   const activeStaff = await prisma.user.findMany({
-    where: { lunchStatus: 'active', role: 'member', deletedAt: null }
+    where: { 
+      lunchStatus: 'active',
+      lunchRole: 'participant',
+      deletedAt: null 
+    },
+    orderBy: { createdAt: 'asc' }
   });
 
   // 前回の参加者IDリスト (連続選定抑制用)

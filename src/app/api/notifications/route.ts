@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 // GET /api/notifications - Get user's notifications (max 5) + unread count
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const [notifications, unreadCount] = await Promise.all([
       prisma.notification.findMany({
@@ -35,10 +32,7 @@ export async function GET() {
 // Body: { action: 'markAllRead' } or { action: 'markRead', id: number }
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const body = await request.json().catch(() => ({}));
     const { action, id } = body;

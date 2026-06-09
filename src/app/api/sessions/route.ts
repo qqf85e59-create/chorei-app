@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 // GET /api/sessions - Get sessions with optional filters
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const { searchParams } = new URL(request.url);
     const date      = searchParams.get('date');
@@ -63,10 +60,7 @@ export async function GET(request: Request) {
 // PUT /api/sessions - Update a session
 export async function PUT(request: Request) {
   try {
-    const session = await auth();
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const body = await request.json();
     const { id, speakerId, topicId, status, adminNote } = body;

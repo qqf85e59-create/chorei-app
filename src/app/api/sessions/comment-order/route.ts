@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 import { GRADE_ORDER } from '@/lib/constants';
 
 /**
@@ -14,10 +14,7 @@ import { GRADE_ORDER } from '@/lib/constants';
  */
 export async function GET(request: Request) {
   try {
-    const authSession = await auth();
-    if (!authSession) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const { searchParams } = new URL(request.url);
     const sessionIdStr = searchParams.get('sessionId');

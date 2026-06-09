@@ -1,14 +1,11 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 import { generateRotation } from '@/lib/rotation';
 import { prisma } from '@/lib/prisma';
 
 // POST /api/rotation/generate - Generate rotation schedule
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session || session.user.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const session = await requireAdmin();
 
   const body = await request.json();
   const { phaseId, roundNumber, startDate } = body;
