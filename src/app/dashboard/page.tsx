@@ -367,12 +367,20 @@ export default function DashboardPage() {
                         <div className="p-4 hover:bg-[#F8F9FC] transition-colors group flex items-center justify-between">
                           <div>
                             <p className="font-bold text-[#1A1D23] text-sm group-hover:text-[#0070CC] transition-colors">{lunch.title}</p>
-                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
-                              <Badge variant="outline" className={lunch.status === 'planning' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' : 'border-blue-300 text-blue-700 bg-blue-50'}>
-                                {lunch.status === 'planning' ? '準備中' : '開催予定'}
-                              </Badge>
-                              {lunch.confirmedDate ? new Date(lunch.confirmedDate).toLocaleDateString('ja-JP') : '日程未定'}
-                            </p>
+                            <div className="flex flex-col gap-1 mt-1.5">
+                              <p className="text-xs text-muted-foreground flex items-center gap-2">
+                                <Badge variant="outline" className={lunch.status === 'planning' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' : 'border-blue-300 text-blue-700 bg-blue-50'}>
+                                  {lunch.status === 'planning' ? '準備中' : '開催予定'}
+                                </Badge>
+                                {lunch.confirmedDate ? new Date(lunch.confirmedDate).toLocaleDateString('ja-JP') : '日程未定'}
+                              </p>
+                              {/* For dashboard we show basic progress. We can fetch it properly or do a quick check if data is available, 
+                                  but we only have basic lunch data here. If we included participants, we could use getLunchProgress. 
+                                  Since we only have basic data, we can just show a prompt to check details. */}
+                              <p className="text-[10px] text-gray-500">
+                                詳細はクリックして確認
+                              </p>
+                            </div>
                           </div>
                           <ChevronRight className="h-4 w-4 text-muted-foreground" />
                         </div>

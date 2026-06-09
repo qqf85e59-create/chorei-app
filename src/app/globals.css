@@ -63,6 +63,14 @@
   --input: #E0E4EF;
   --ring: #0070CC;
   --radius: 0.625rem;
+
+  /* Lunch feature aliases (migrated from standalone lunch app).
+     Without these, `hover:bg-[var(--color-sub)]` resolved to transparent,
+     making buttons disappear on hover. */
+  --color-primary: #00135D;
+  --color-sub:     #1E3A8A;
+  --color-accent:  #0070CC;
+  --color-panel:   #E8F2FB;
 }
 
 @layer base {

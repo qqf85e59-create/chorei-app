@@ -14,11 +14,17 @@ type EventWithSurvey = LunchEvent & {
 const GENRES = ["和食", "洋食", "中華", "イタリアン", "フレンチ", "焼肉", "寿司", "ラーメン", "カレー", "カフェ", "その他"];
 const BUDGETS = ["1,000円以内", "1,000円〜1,500円", "1,500円〜2,000円", "2,000円以上", "気にしない"];
 
-export default function SurveyTab({ event, role, userId, isParticipant = true }: { event: any, role: string, userId: string, isParticipant?: boolean }) {
+export default function SurveyTab({ event, role, userId, activeStaff = [], isParticipant = true }: { event: any, role: string, userId: string, activeStaff?: any[], isParticipant?: boolean }) {
   const router = useRouter();
   const isAdmin = role === "admin";
   const responses = event.surveyResponses || [];
-  const participants = event.participants?.map((p: any) => p.user) || [];
+  
+  // If members are selected (length > 1 including organizer), use them.
+  // Otherwise, use activeStaff (all active participants) for the survey target pool.
+  const hasSelectedMembers = (event.participants?.length || 0) > 1;
+  const targetMembers = hasSelectedMembers 
+    ? event.participants.map((p: any) => p.user).filter((u: any) => u.lunchRole === 'participant')
+    : activeStaff;
 
   // State for member wizard
   const [step, setStep] = useState(1);
@@ -127,7 +133,12 @@ export default function SurveyTab({ event, role, userId, isParticipant = true }:
         </div>
 
         <div>
-          <h3 className="text-lg font-bold mb-4 border-b pb-2 text-[var(--color-primary)]">メンバー別 回答一覧</h3>
+          <div className="flex justify-between items-end mb-4 border-b pb-2">
+            <h3 className="text-lg font-bold text-[var(--color-primary)]">メンバー別 回答一覧</h3>
+            <div className="bg-blue-50 text-[var(--color-primary)] px-3 py-1 rounded-full text-xs font-bold border border-blue-200 shadow-sm">
+              回答率: {responses.length} / {targetMembers.length} 名
+            </div>
+          </div>
           <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-50 text-gray-700">
@@ -139,9 +150,9 @@ export default function SurveyTab({ event, role, userId, isParticipant = true }:
                 </tr>
               </thead>
               <tbody>
-                {participants.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-3 text-center text-gray-500">参加者がいません</td></tr>
-                ) : participants.map((user: any) => {
+                {targetMembers.length === 0 ? (
+                  <tr><td colSpan={4} className="px-4 py-3 text-center text-gray-500">対象者がいません</td></tr>
+                ) : targetMembers.map((user: any) => {
                   const response = responses.find((r: any) => r.userId === user.id);
                   
                   if (!response) {

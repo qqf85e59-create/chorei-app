@@ -111,15 +111,22 @@
 - **目的**: 抽選候補から主催者(organizer)を外す。
 - **対象**: `src/app/lunch/[id]/select/route.ts`（`activeStaff` 取得条件）、`src/app/lunch/[id]/page.tsx`（`activeStaff` 取得条件）。必要なら `src/lib/selectionAlgorithm.ts`。
 - **現状**: `where: { lunchStatus: 'active', role: 'member', deletedAt: null }` で抽選母集団を作成。これだと「role=memberだがlunchRole=organizerの篠原」が候補に入ってしまう。
-- **変更内容**: 抽選母集団の条件を **`{ lunchStatus: 'active', lunchRole: 'participant', deletedAt: null }`** に変更（`role` 条件は撤去）。
-- **受け入れ条件**: メンバー選定の抽選候補に水谷・篠原が**一切現れない**。氏家を含む participant 7名が候補になる。
+- **変更内容**:
+  - 抽選母集団の条件を **`{ lunchStatus: 'active', lunchRole: 'participant', deletedAt: null }`** に変更（`role` 条件は撤去）。
+  - **抽選人数を 4 → 3 に変更**。`src/lib/selectionAlgorithm.ts` の `selectCount` 既定値、および `src/app/lunch/[id]/select/route.ts:48` の `selectParticipants(..., 4)` 呼び出しを `3` にする。
+- **受け入れ条件**: メンバー選定の抽選候補に水谷・篠原が**一切現れない**。氏家を含む participant 7名が候補になり、**3名**が選ばれる（主催者を加えた1回の参加は計4名）。
 
-### P3-2. 新規ランチ会の当番(主催者)候補を lunchRole 基準に変更
-- **目的**: 当番ドロップダウンを organizer 2名に限定し、交代ロジックを維持する。
-- **対象**: `src/app/lunch/new/page.tsx`（`organizers` 取得）、`src/app/lunch/new/NewLunchForm.tsx`。
-- **現状**: `organizers = prisma.user.findMany({ where: { role: 'admin', deletedAt: null }})`。
-- **変更内容**: `where: { lunchRole: 'organizer', deletedAt: null }` に変更。既存の「前回と違う方を初期選択」する交代ロジックはそのまま機能（水谷⇄篠原）。
-- **受け入れ条件**: 当番セレクトに水谷・篠原のみ表示。前回当番と異なる方が初期選択される。作成が成功する（P0-1既修正済み）。
+### P3-2. 新規ランチ会の主催者をログインユーザーに自動設定（当番選択を廃止）
+- **目的**: 「主催者はログインしている本人」なので、当番セレクトを廃止して入力を1ステップ減らす。
+- **対象**: `src/app/lunch/new/page.tsx`、`src/app/lunch/new/NewLunchForm.tsx`、`src/app/api/lunch/route.ts`(POST)。
+- **現状**: フォームに「当番（主催者）」セレクトがあり、`organizerId` を選んで送信している。
+- **変更内容**:
+  1. NewLunchForm から当番セレクトを**削除**。送信ボディは `{ title }` のみ。
+  2. `POST /api/lunch` で `organizerId` を**ログインセッションの `session.user.id`** から取得して保存（ボディの organizerId は受け取らない）。
+  3. 作成は **lunchRole='organizer' のユーザー（水谷・篠原）のみ許可**。それ以外がアクセスした場合は 403（ページ側でもガード）。
+  4. `lunch/new/page.tsx` の当番候補取得・交代ロジックは不要になるため削除。
+- **【要判断】**: 主催者の交代運用（水谷⇄篠原の輪番）をアプリで補助しないでよいか。本人がログインして作成する運用なら不要、と解釈。
+- **受け入れ条件**: 新規作成画面に当番セレクトが無い。作成された `LunchEvent.organizerId` がログイン中の主催者本人になる。participant がこの画面に来ると弾かれる。
 
 ---
 
@@ -188,6 +195,58 @@
   - `grep -rln "session.user.role !== 'admin'" src/app/api` の結果が **0件**（cron除く）。
   - 各保護ルートが未ログインで401、権限不足で403を返す。
   - 既存の正常系の挙動・レスポンス形は不変。`tsc --noEmit` パス。
+
+---
+
+## Phase 7: 利用店舗の履歴ページ（新規）
+
+> 背景: 現状、利用した店舗を一覧で振り返れる場所が無い。`Restaurant` は `visitCount` / `lastVisited` を持つが、各ランチ会の RestaurantTab 内でしか見えない。
+
+### P7-1. 利用店舗一覧/履歴ページ
+- **目的**: 過去に利用した店舗を一覧で確認し、重複来店を避ける材料にする。
+- **対象**: `src/app/restaurants/page.tsx`（新規）、ナビ（`src/components/header.tsx`）、必要なら `GET /api/restaurants`（新規 or 既存利用）。
+- **変更内容**:
+  1. レストランマスタを一覧表示（店名・ジャンル・エリア・訪問回数・最終利用日・URL/地図リンク）。
+  2. 並び替え（最終利用日が古い順／訪問回数順）とジャンル絞り込み。
+  3. 各店の「利用したランチ会」リンク（`LunchEvent.restaurantId` 経由で開催回を辿れる）。
+  4. ナビ「ランチ管理」配下、または `/history` ページ内のタブ/リンクとして入口を設置（lunchStatus=active＋adminのみ表示、Phase 1 準拠）。
+- **【要判断】**: 独立ページ（`/restaurants`）にするか、ランチ管理一覧ページ内のタブにするか。推奨は独立ページ＋一覧からのリンク。
+- **受け入れ条件**: 利用実績のある店舗が訪問回数・最終利用日付きで一覧表示され、そこから該当ランチ会へ辿れる。
+
+---
+
+## Phase 8: 運営ワークフローの進捗可視化・アンケート未回答の可視化（新規）
+
+> 想定フロー: **①参加者が月末までにアンケート回答 → ②主催者がスケジュール登録＋飲食店予約 → ③経費精算（任意タイミング・本人リマインド用）**。この進捗が一目で分かる場所が欲しい。アンケートは「誰が未回答か」を見えるようにする。
+
+### P8-1. ランチ会の進捗ステータス表示（ステップインジケータ）
+- **目的**: 各ランチ会が今どのステップにあるかを主催者・参加者が把握できる。
+- **対象**: `src/app/lunch/[id]/page.tsx`（詳細ヘッダ）、`src/app/lunch/[id]/LunchManagementTabs.tsx`、ダッシュボード/ホームの進行中カード（既存）。
+- **変更内容**:
+  1. 詳細ページ上部に4ステップのインジケータを表示し、各ステップの完了/進行中を判定:
+     - **アンケート**: 参加者全員が `SurveyResponse` を提出 → 完了。一部 → 進行中（回答 n/N）。
+     - **メンバー選定**: `Participation` が確定（主催者＋3名）→ 完了。
+     - **日程・店舗**: `confirmedDate` かつ `restaurantId` がセット → 完了。
+     - **経費精算**: `Settlement` が存在し `status='paid'` → 完了（任意ステップ＝未了でも警告にしない）。
+  2. ステップ判定ロジックは `lib` に純関数として切り出す（例: `lib/lunch-progress.ts`、テスト可能化）。
+  3. ダッシュボード/ホームの「進行中のランチ会」カードに、現在ステップと次アクション（例:「アンケート回答待ち 2/3」）を表示。
+- **受け入れ条件**: 詳細ページで4ステップの進捗が色分け表示される。判定が実データ（Survey/Participation/confirmedDate/restaurant/Settlement）と一致する。
+
+### P8-2. アンケート未回答者の可視化
+- **目的**: 主催者が「誰が未回答か」を把握し、督促できるようにする。
+- **対象**: `src/app/lunch/[id]/tabs/SurveyTab.tsx`、必要なら `GET /api/lunch/[id]/survey`。
+- **変更内容**:
+  1. admin 表示時、対象母集団（その回の `Participation` の参加者、または lunchStatus=active の participant）に対して **回答済み/未回答** を一覧表示。
+  2. 未回答者を明示（バッジ「未回答」）し、回答率（n/N）を表示。
+  3. （任意・将来）未回答者へのリマインド導線（通知 or コピー用リスト）。
+- **【要判断】**: アンケートの母集団は「その回の選定参加者(Participation)」か「lunchStatus=active の participant 全員」か。フロー上「回答→選定」の順なら、母集団は**選定前の active participant 全員**が自然。要確認。
+- **受け入れ条件**: admin が未回答者と回答率を確認できる。
+
+---
+
+## 付録0: 本セッションで適用済みの即時修正（実装済み）
+
+- **ボタンがホバーで消えるバグの修正（適用済み）**: ランチ系コンポーネントが使う `var(--color-sub)` / `var(--color-panel)` が `globals.css` に未定義で、`hover:bg-[var(--color-sub)]` がホバー時に透明化していた。`src/app/globals.css` の `:root` に `--color-primary/-sub/-accent/-panel` を定義して解消（値は既存ブランド色と一致）。antigravity 側での再対応は不要。
 
 ---
 

@@ -43,14 +43,22 @@ export default async function HistoryPage() {
           </h1>
           <p className="text-sm text-gray-500 mt-1">ランチ会の企画や過去の履歴を確認できます</p>
         </div>
-        {role === "admin" && (
-          <Link href="/lunch/new">
-            <button className="bg-[var(--color-primary)] hover:bg-[var(--color-sub)] text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
-              <Plus className="w-4 h-4" />
-              新規作成
+        <div className="flex items-center gap-3">
+          <Link href="/restaurants">
+            <button className="bg-white hover:bg-gray-50 text-[var(--color-primary)] border border-gray-300 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+              <MapPin className="w-4 h-4" />
+              利用店舗の履歴
             </button>
           </Link>
-        )}
+          {role === "admin" && (
+            <Link href="/lunch/new">
+              <button className="bg-[var(--color-primary)] hover:bg-[var(--color-sub)] text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors">
+                <Plus className="w-4 h-4" />
+                新規作成
+              </button>
+            </Link>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">

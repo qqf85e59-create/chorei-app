@@ -77,7 +77,7 @@ export default function LunchManagementTabs({ event, activeStaff, previousPartic
           />
         )}
         {activeTab === "schedule" && <ScheduleTab event={event} role={role} userId={userId} isParticipant={isParticipant} />}
-        {activeTab === "survey" && <SurveyTab event={event} role={role} userId={userId} isParticipant={isParticipant} />}
+        {activeTab === "survey" && <SurveyTab event={event} role={role} userId={userId} isParticipant={isParticipant} activeStaff={activeStaff} />}
         {activeTab === "restaurant" && role === "admin" && <RestaurantTab event={event} restaurants={restaurants} />}
       </div>
     </div>

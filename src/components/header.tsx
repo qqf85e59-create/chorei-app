@@ -28,6 +28,7 @@ const navItems: NavItem[] = [
   { label:'グランドルール', href:'/grand-rule', icon:<FileText className="h-3.5 w-3.5" /> },
   { label:'会議URL設定',    href:'/settings/meeting-url', icon:<Video className="h-3.5 w-3.5" />, adminOnly:true },
   { label:'ランチ管理',     href:'/history',   icon:<Utensils className="h-3.5 w-3.5" />, lunchOnly: true },
+  { label:'店舗履歴',       href:'/restaurants', icon:<Utensils className="h-3.5 w-3.5" />, lunchOnly: true },
 ];
 
 export function Header() {
