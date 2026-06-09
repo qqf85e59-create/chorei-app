@@ -1,0 +1,171 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: "Meiryo UI", "Yu Gothic UI", sans-serif;
+  --font-mono: var(--font-geist-mono);
+  --font-heading: "Meiryo UI", "Yu Gothic UI", sans-serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* Brand colors */
+  --color-brand-primary: #00135D;
+  --color-brand-secondary: #1E3A8A;
+  --color-brand-accent: #3B82F6;
+  --color-brand-danger: #DC2626;
+  --color-brand-warning: #F59E0B;
+  --color-brand-success: #059669;
+  --color-brand-border: #DDDFE9;
+  --color-brand-bg: #F7F7F7;
+  --color-brand-text: #212529;
+}
+
+:root {
+  --background: oklch(0.985 0 0);
+  --foreground: #212529;
+  --card: oklch(1 0 0);
+  --card-foreground: #212529;
+  --popover: oklch(1 0 0);
+  --popover-foreground: #212529;
+  --primary: #00135D;
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: #1E3A8A;
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: #F7F7F7;
+  --muted-foreground: oklch(0.556 0 0);
+  --accent: #3B82F6;
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: #DC2626;
+  --border: #DDDFE9;
+  --input: #DDDFE9;
+  --ring: #3B82F6;
+  --chart-1: #00135D;
+  --chart-2: #1E3A8A;
+  --chart-3: #3B82F6;
+  --chart-4: #059669;
+  --chart-5: #F59E0B;
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: #212529;
+  --sidebar-primary: #00135D;
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: #F7F7F7;
+  --sidebar-accent-foreground: #212529;
+  --sidebar-border: #DDDFE9;
+  --sidebar-ring: #3B82F6;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Meiryo UI", "Yu Gothic UI", sans-serif;
+    font-size: 14px;
+    color: #212529;
+  }
+  html {
+    font-family: "Meiryo UI", "Yu Gothic UI", sans-serif;
+  }
+  h1 {
+    font-size: 24px;
+    font-weight: 700;
+    color: #00135D;
+  }
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    color: #00135D;
+  }
+  h3 {
+    font-size: 18px;
+    font-weight: 600;
+    color: #1E3A8A;
+  }
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideInRight {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s ease-out;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #F7F7F7;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #DDDFE9;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #1E3A8A;
+}

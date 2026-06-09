@@ -1,15 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
-import { adjustForAbsence, canSelfCancel, reverseCascadeSpeakerShift } from '@/lib/absence-logic';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
+import { adjustForAbsence, canSelfCancel, reflowSpeakers } from '@/lib/absence-logic';
 
 // POST /api/absence - Create an absence request (+ auto-adjust schedule)
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const body = await request.json();
     const { sessionId, type, note } = body;
@@ -73,11 +70,13 @@ export async function POST(request: Request) {
       create: { sessionId, userId, status: attStatus, reportedAt: new Date() },
     });
 
-    // Auto-adjustment (cascade shift, re-select commentators, minimum attendance check)
+    // Auto-adjustment (speaker reflow, re-select commentators, minimum attendance check).
+    // Wrapped in a transaction so a partial failure cannot leave the schedule
+    // inconsistent (e.g. speaker cleared but successors not pulled forward).
     // Errors here are logged but do not block the response — the absence itself is already saved.
     let report;
     try {
-      report = await adjustForAbsence(sessionId, userId);
+      report = await prisma.$transaction((tx) => adjustForAbsence(sessionId, userId, tx));
     } catch (adjustErr) {
       console.error('[POST /api/absence] adjustForAbsence error:', adjustErr);
       report = {
@@ -104,10 +103,7 @@ export async function POST(request: Request) {
 // GET /api/absence - List absence requests
 export async function GET(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const { searchParams } = new URL(request.url);
     const sessionId = searchParams.get('sessionId');
@@ -145,10 +141,7 @@ export async function GET(request: Request) {
 // DELETE /api/absence?id=xxx - Self-cancel absence declaration before previous day 23:59 JST
 export async function DELETE(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const { searchParams } = new URL(request.url);
     const idParam = searchParams.get('id');
@@ -180,29 +173,28 @@ export async function DELETE(request: Request) {
       );
     }
 
+    const restoreStatus = req.previousAttendanceStatus || 'present';
     let cascadeReversed = false;
 
-    // Reverse cascade shift if user was the original speaker
-    if (req.originalSpeaker) {
-      await reverseCascadeSpeakerShift(req.sessionId, req.userId);
-      cascadeReversed = true;
-    }
-
-    // Delete the absence request
+    // Neon serverless 互換: インタラクティブtrxを避け逐次実行する。
+    // remove the absence, restore attendance, then reflow speakers so the now-available
+    // user flows back into the rotation (反映の取消し).
     await prisma.absenceRequest.delete({ where: { id } });
-
-    // Restore attendance status from snapshot
-    const restoreStatus = req.previousAttendanceStatus || 'present';
     await prisma.attendance.updateMany({
       where: { sessionId: req.sessionId, userId: req.userId },
       data: { status: restoreStatus, reportedAt: new Date() },
     });
+    // Reflow only matters when the cancelled absence affected the speaker rotation.
+    if (req.originalSpeaker) {
+      await reflowSpeakers(req.session.phaseId, req.session.date, prisma);
+      cascadeReversed = true;
+    }
 
     return NextResponse.json({
       ok: true,
       cascadeReversed,
       note: cascadeReversed
-        ? '欠席申請を取消し、スケジュールを元に戻しました。'
+        ? '欠席申請を取消し、発話スケジュールを再調整しました。'
         : '欠席申請を取消ししました。',
     });
   } catch (err) {

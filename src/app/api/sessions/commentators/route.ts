@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 // [12] Phase 1 sessions do not have the commentator concept
 export async function POST(request: Request) {
-  const session = await auth();
-  if (!session || session.user.role !== 'admin') {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const session = await requireAdmin();
 
   const body = await request.json();
   const { sessionId, count = 2 } = body;
@@ -37,7 +34,10 @@ export async function POST(request: Request) {
 
     // 2. サブ発話者候補となる全ユーザーを取得（メイン発話者は除外）
     const candidateUsers = await prisma.user.findMany({
-      where: targetSession.speakerId ? { id: { not: targetSession.speakerId } } : undefined,
+      where: {
+        deletedAt: null,
+        ...(targetSession.speakerId ? { id: { not: targetSession.speakerId } } : {})
+      },
     });
 
     // 3. 対象セッションにおける 出欠（Attendance）と 事前申請（AbsenceRequest）を取得

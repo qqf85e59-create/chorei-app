@@ -2,9 +2,22 @@ import { prisma } from './prisma';
 
 export const CONFIG_KEYS = {
   MEETING_URL: 'meeting_url',
+  LUNCH_PARTICIPANT_COUNT: 'lunch_participant_count',
 } as const;
 
 export const DEFAULT_MEETING_URL = 'https://teams.microsoft.com/meet/4994985303963?p=2rYMBuP8rBv9EtKEKD';
+
+export const DEFAULT_LUNCH_PARTICIPANT_COUNT = 3;
+
+/** ランチ選定人数（主催者を除く抽選人数）。1以上の整数。未設定時は既定値。 */
+export async function getLunchParticipantCount(): Promise<number> {
+  const raw = await getConfigValue(
+    CONFIG_KEYS.LUNCH_PARTICIPANT_COUNT,
+    String(DEFAULT_LUNCH_PARTICIPANT_COUNT)
+  );
+  const n = parseInt(raw, 10);
+  return Number.isFinite(n) && n >= 1 ? n : DEFAULT_LUNCH_PARTICIPANT_COUNT;
+}
 
 /**
  * Get a config value by key. Returns default if not set.

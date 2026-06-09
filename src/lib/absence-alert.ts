@@ -35,7 +35,7 @@ export async function getAllAbsenceAlerts(): Promise<
     alertLevel: 'none' | 'warning' | 'danger';
   }>
 > {
-  const users = await prisma.user.findMany();
+  const users = await prisma.user.findMany({ where: { deletedAt: null } });
   const alerts = [];
 
   for (const user of users) {

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 // POST /api/sessions/mark-viewed
 // Body: { sessionId: number }
@@ -8,10 +8,7 @@ import { auth } from '@/lib/auth';
 // Dismisses the "changed" diff highlight for this user/session.
 export async function POST(request: Request) {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     const body = await request.json().catch(() => ({}));
     const { sessionId } = body;

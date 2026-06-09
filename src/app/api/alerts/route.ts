@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 import { getAllAbsenceAlerts } from '@/lib/absence-alert';
 
 // GET /api/alerts - Get absence alerts (admin only)
 export async function GET() {
-  const session = await auth();
-  if (!session || session.user.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const session = await requireAdmin();
 
   const alerts = await getAllAbsenceAlerts();
   return NextResponse.json(alerts);

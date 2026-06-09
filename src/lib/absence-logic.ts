@@ -1,15 +1,24 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
-import { getSessionDates, getWeekNumber } from './rotation';
 
 // Type for transaction client or regular prisma client
 type TxClient = Prisma.TransactionClient | PrismaClient;
 
 // Minimum attendance rules
 // Phase 1: total attendance (speaker + listeners) must be >= 3
-// Phase 2/3: commentators count must be >= 4
+// Phase 2/3: at least 1 commentator (respondent) required; absentees trigger auto re-selection.
 export const PHASE1_MIN_TOTAL = 3;
 export const PHASE2_3_MIN_COMMENTATORS = 1; // Phase 2 は応答者1名（欠席時は自動再選）
+
+/** Unbiased Fisher–Yates shuffle (does not mutate the input). */
+function shuffle<T>(arr: readonly T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
 
 export type AdjustmentReport = {
   speakerCascaded: boolean;
@@ -54,112 +63,74 @@ function formatDateJP(date: Date): string {
 }
 
 /**
- * Cascade speaker shift when the scheduled speaker is absent:
- *   - Clear speaker on current session
- *   - Pull subsequent speakers forward by 1
- *   - Append a new session at the end for the displaced (absent) speaker
- * Works for any phase where speakerId drives rotation.
- * Also creates Notification records for each affected speaker [9].
+ * Reflow speakers across the remaining scheduled sessions of a phase ("繰り上げ").
+ *
+ * Pure re-assignment over EXISTING sessions — no new slots are appended (this is
+ * what previously caused makeup slots to spill past the phase end and collide with
+ * the next phase's dates).
+ *
+ * Algorithm:
+ *   1. Take the current speakers of the scheduled sessions on/after `fromDate`,
+ *      in date order, as a queue.
+ *   2. Walk the dates; for each, assign the first queued speaker who is NOT
+ *      unavailable (absent / left_early / unspoken) on that date.
+ *   3. An unavailable speaker stays at the front of the queue and is deferred to
+ *      the next date they can attend — i.e. "次回へ送る（次回も欠席なら次々回へ…）".
+ *   4. If nobody in the queue can attend a date, that session is left with no speaker.
+ *
+ * Notifies a speaker whenever their assigned date changes.
+ * Returns the number of sessions whose speaker changed.
  */
-export async function cascadeSpeakerShift(sessionId: number, absentUserId: string, tx: TxClient = prisma) {
-  const target = await tx.session.findUnique({ where: { id: sessionId } });
-  if (!target || !absentUserId) return;
-
-  // 1. Clear the absent speaker from the target session (no speaker on this day)
-  await tx.session.update({
-    where: { id: target.id },
-    data: {
-      speakerId: null,
-      adminNote: target.adminNote
-        ? `${target.adminNote} / 欠席により発表順延`
-        : '欠席により発表順延',
-    },
-  });
-
-  // 2. Find the last session in this phase to append after
-  const lastSession = await tx.session.findFirst({
-    where: { phaseId: target.phaseId, status: 'scheduled' },
-    orderBy: { date: 'desc' },
-  });
-  if (!lastSession) return;
-
-  // 3. Generate the next available session date after the last session
-  const holidays = await tx.holiday.findMany({ where: { isActive: true } });
-  const holidaySet = new Set(holidays.map((h) => h.date.toISOString().split('T')[0]));
-
-  const nextStartDate = new Date(lastSession.date);
-  nextStartDate.setUTCDate(nextStartDate.getUTCDate() + 1);
-  const nextDates = getSessionDates(nextStartDate, 1, holidaySet);
-  if (nextDates.length === 0) return;
-
-  const newDate = nextDates[0];
-  const weekNum = getWeekNumber(newDate, new Date(target.date));
-
-  // 4. Append a new session at the end for the absent speaker
-  const newSession = await tx.session.create({
-    data: {
-      date: newDate,
-      phaseId: target.phaseId,
-      weekNumber: weekNum,
-      topicId: target.topicId,
-      speakerId: absentUserId,
-      startTime: target.startTime,
-      endTime: target.endTime,
-      status: 'scheduled',
-      roundNumber: target.roundNumber,
-      adminNote: '自動順送りによる追加枠',
-    },
-  });
-
-  // 5. Notify the absent speaker of their new date
-  await tx.notification.create({
-    data: {
-      userId: absentUserId,
-      sessionId: newSession.id,
-      type: 'speaker_change',
-      message: `${formatDateJP(newDate)} に発話が順延されました（欠席による自動振替）`,
-    },
-  });
-}
-
-/**
- * Reverse a cascade speaker shift when an absence is cancelled.
- * - Shifts speakers/topics backward by 1 (opposite of cascade)
- * - Deletes the trailing auto-appended session
- * - Restores the original speaker on the target session
- */
-export async function reverseCascadeSpeakerShift(
-  sessionId: number,
-  originalUserId: string,
+export async function reflowSpeakers(
+  phaseId: number,
+  fromDate: Date,
   tx: TxClient = prisma
-) {
-  const target = await tx.session.findUnique({ where: { id: sessionId } });
-  if (!target) return;
-
-  // 1. Find and delete the auto-appended session for this user
-  //    (the session created at the end by cascadeSpeakerShift)
-  const appendedSession = await tx.session.findFirst({
-    where: {
-      phaseId: target.phaseId,
-      speakerId: originalUserId,
-      adminNote: { contains: '自動順送りによる追加枠' },
-    },
-    orderBy: { date: 'desc' },
+): Promise<number> {
+  const sessions = await tx.session.findMany({
+    where: { phaseId, status: 'scheduled', date: { gte: fromDate } },
+    orderBy: { date: 'asc' },
   });
-  if (appendedSession) {
-    await tx.session.delete({ where: { id: appendedSession.id } });
+  if (sessions.length === 0) return 0;
+
+  // Queue of speakers to place, preserving current rotation order (skip empties).
+  const queue: string[] = sessions
+    .map((s) => s.speakerId)
+    .filter((id): id is string => id !== null);
+
+  // Unavailable user set per session (sequential — interactive tx is single-connection).
+  const unavailableBySession = new Map<number, Set<string>>();
+  for (const s of sessions) {
+    unavailableBySession.set(s.id, await getUnavailableUserIds(s.id, tx));
   }
 
-  // 2. Restore the original speaker on the target session
-  await tx.session.update({
-    where: { id: target.id },
-    data: {
-      speakerId: originalUserId,
-      adminNote: target.adminNote
-        ? target.adminNote.replace(/ ?\/ ?欠席により発表順延/, '').trim() || null
-        : null,
-    },
-  });
+  let changed = 0;
+  for (const s of sessions) {
+    const unavailable = unavailableBySession.get(s.id)!;
+    const pickIdx = queue.findIndex((uid) => !unavailable.has(uid));
+    const newSpeaker = pickIdx >= 0 ? queue[pickIdx] : null;
+    if (pickIdx >= 0) queue.splice(pickIdx, 1);
+
+    if (s.speakerId === newSpeaker) continue;
+
+    await tx.session.update({
+      where: { id: s.id },
+      data: { speakerId: newSpeaker },
+    });
+    changed++;
+
+    if (newSpeaker) {
+      await tx.notification.create({
+        data: {
+          userId: newSpeaker,
+          sessionId: s.id,
+          type: 'speaker_change',
+          message: `${formatDateJP(s.date)} の発話担当になりました（欠席による繰り上げ）`,
+        },
+      });
+    }
+  }
+
+  return changed;
 }
 
 /**
@@ -183,7 +154,7 @@ export async function reselectCommentators(sessionId: number, tx: TxClient = pri
   const availableUsers = candidateUsers.filter((u) => !unavailable.has(u.id));
 
   // Shuffle and select
-  const shuffled = [...availableUsers].sort(() => 0.5 - Math.random());
+  const shuffled = shuffle(availableUsers);
   const selected = shuffled.slice(0, Math.min(desiredCount, shuffled.length));
 
   await tx.session.update({
@@ -280,13 +251,14 @@ export async function adjustForAbsence(
 
   const phaseNumber = await getPhaseNumber(target.phaseId, tx);
   const isSpeaker = target.speakerId === absentUserId;
-  const isCommentator = target.commentators.some((c) => c.id === absentUserId);
 
-  // 1) Speaker absence: cascade shift (all phases)
+  // 1) Speaker absence: reflow subsequent speakers forward (all phases).
+  //    The absent speaker is deferred to their next attendable session; no new
+  //    slot is appended.
   if (isSpeaker) {
-    await cascadeSpeakerShift(sessionId, absentUserId, tx);
+    await reflowSpeakers(target.phaseId, target.date, tx);
     report.speakerCascaded = true;
-    report.reasons.push('発話者不在のため後続セッションを繰り上げ、末尾に新枠を追加');
+    report.reasons.push('発話者不在のため後続セッションを繰り上げ');
     // Phase 2/3: the incoming speaker may already be a commentator → re-select
     if (phaseNumber !== 1) {
       await reselectCommentators(sessionId, tx);

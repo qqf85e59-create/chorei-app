@@ -1,26 +1,23 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
-import { reselectCommentators, PHASE2_3_MIN_COMMENTATORS } from '@/lib/absence-logic';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 // GET /api/sessions/next-commentators
 // Returns the next scheduled session (future, status=scheduled) with its commentators,
 // plus a "changed" flag indicating whether the set changed since the user last viewed it.
-// For Phase 2/3 sessions that haven't been preset, auto-generates commentators (暫定).
-// [4] Race condition prevention via commentatorsPreset check + $transaction
+//
+// Read-only: commentators are finalised by the daily 07:00 JST cron
+// (/api/cron/daily-finalize), not lazily on read. Until then the UI shows 「未確定」.
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireUser();
 
     // Today at 00:00 - include today's session if not yet done
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
 
-    // Find the next upcoming session for the CURRENT session's user (global view - just the next one)
-    let next = await prisma.session.findFirst({
+    // Find the next upcoming session (global view - just the next one)
+    const next = await prisma.session.findFirst({
       where: {
         date: { gte: todayStart },
         status: 'scheduled',
@@ -33,42 +30,6 @@ export async function GET() {
         commentators: { select: { id: true, name: true, grade: true } },
       },
     });
-
-    if (!next) {
-      return NextResponse.json({ session: null });
-    }
-
-    // [4] If Phase 2/3 and commentators are insufficient AND not yet preset, auto-generate.
-    // Runs even when speakerId is null (speaker cascade removed them) so attendees can still be assigned.
-    if (
-      next.phase.phaseNumber !== 1 &&
-      next.commentators.length < PHASE2_3_MIN_COMMENTATORS &&
-      !next.commentatorsPreset // Skip if already preset
-    ) {
-      // Re-check before writing (optimistic concurrency — commentatorsPreset acts as a guard)
-      const locked = await prisma.session.findUnique({
-        where: { id: next.id },
-        select: { commentatorsPreset: true },
-      });
-      if (locked && !locked.commentatorsPreset) {
-        await reselectCommentators(next.id);
-        await prisma.session.update({
-          where: { id: next.id },
-          data: { commentatorsPreset: true },
-        });
-      }
-
-      // Re-fetch with updated commentators
-      next = await prisma.session.findUnique({
-        where: { id: next.id },
-        include: {
-          phase: { select: { phaseNumber: true } },
-          speaker: { select: { id: true, name: true, grade: true } },
-          topic: { select: { topicText: true } },
-          commentators: { select: { id: true, name: true, grade: true } },
-        },
-      });
-    }
 
     if (!next) {
       return NextResponse.json({ session: null });

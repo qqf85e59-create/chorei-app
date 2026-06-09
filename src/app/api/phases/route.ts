@@ -1,13 +1,10 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
 // GET /api/phases - Get all phases
 export async function GET() {
-  const session = await auth();
-  if (!session) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
+  const session = await requireUser();
 
   const phases = await prisma.phase.findMany({
     include: {
@@ -28,10 +25,7 @@ export async function GET() {
 
 // PUT /api/phases - Update a phase (admin only)
 export async function PUT(request: Request) {
-  const session = await auth();
-  if (!session || session.user.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-  }
+  const session = await requireAdmin();
 
   const body = await request.json();
   const { id, ...data } = body;

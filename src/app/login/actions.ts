@@ -20,7 +20,7 @@ export async function authenticate(
   // ② DB で事前検証（具体的なエラーメッセージを返す）
   //    ※ credentials が正しければここで通過し、下の signIn でも必ず成功する
   try {
-    const user = await prisma.user.findFirst({ where: { email } });
+    const user = await prisma.user.findFirst({ where: { email, deletedAt: null } });
     if (!user) {
       return `「${email}」は登録されていません`;
     }

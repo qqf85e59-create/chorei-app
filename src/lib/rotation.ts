@@ -9,8 +9,10 @@ export async function generateRotation(
   roundNumber: number,
   startDate: Date
 ) {
-  // Get all members
-  const users = await prisma.user.findMany();
+  // Get all members who are active for morning assembly
+  const users = await prisma.user.findMany({
+    where: { choreiStatus: 'active', deletedAt: null }
+  });
 
   // Get holidays
   const holidays = await prisma.holiday.findMany({
@@ -30,8 +32,12 @@ export async function generateRotation(
         GRADE_ORDER.indexOf(b.grade as (typeof GRADE_ORDER)[number])
     );
   } else {
-    // Round 2, 3: Random order
-    sortedUsers = [...users].sort(() => Math.random() - 0.5);
+    // Round 2, 3: Random order (Fisher-Yates)
+    sortedUsers = [...users];
+    for (let i = sortedUsers.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [sortedUsers[i], sortedUsers[j]] = [sortedUsers[j], sortedUsers[i]];
+    }
   }
 
   // Get topics for the phase
@@ -95,8 +101,10 @@ export function getSessionDates(
   const dates: Date[] = [];
   const current = new Date(startDate);
 
+  // UTC-based throughout so results are identical on Vercel (UTC) and locally (JST).
+  // (Previously mixed local getDay() with UTC toISOString(), which could shift days.)
   while (dates.length < count) {
-    const dayOfWeek = current.getDay();
+    const dayOfWeek = current.getUTCDay();
     const dateStr = current.toISOString().split('T')[0];
 
     if (
@@ -105,7 +113,7 @@ export function getSessionDates(
     ) {
       dates.push(new Date(current));
     }
-    current.setDate(current.getDate() + 1);
+    current.setUTCDate(current.getUTCDate() + 1);
   }
   return dates;
 }

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 import {
   CONFIG_KEYS,
   DEFAULT_MEETING_URL,
@@ -10,10 +10,7 @@ import {
 // GET /api/config/meeting-url - All authenticated users can read
 export async function GET() {
   try {
-    const session = await auth();
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const session = await requireUser();
     const url = await getConfigValue(CONFIG_KEYS.MEETING_URL, DEFAULT_MEETING_URL);
     return NextResponse.json({ url });
   } catch (err) {
@@ -28,10 +25,7 @@ export async function GET() {
 // PUT /api/config/meeting-url - Admin only
 export async function PUT(request: Request) {
   try {
-    const session = await auth();
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
+    const session = await requireAdmin();
 
     const body = await request.json().catch(() => ({}));
     const { url } = body;

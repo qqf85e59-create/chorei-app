@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   CalendarDays, BookOpen, Mic, Clock, FileText,
   UserMinus, History, MessageSquare,
-  Video, AlertTriangle, ChevronRight, Bell, Users, TrendingUp,
+  Video, AlertTriangle, ChevronRight, Bell, Users, TrendingUp, Utensils
 } from 'lucide-react';
 import { GRADE_LABELS, SESSION_STRUCTURE, formatDateUTC, getTodayStr } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
@@ -88,6 +88,7 @@ export default function HomePage() {
   const [upcomingSessions, setUpcomingSessions] = useState<SessionData[]>([]);
   const [upcomingCommentOrders, setUpcomingCommentOrders] = useState<Record<number, CommentOrderItem[]>>({});
   const [phaseInfo, setPhaseInfo] = useState<PhaseInfo[]>([]);
+  const [activeLunches, setActiveLunches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   // ── コメント順を取得（Phase 1 専用） ──────────────
@@ -125,13 +126,14 @@ export default function HomePage() {
     try {
       const today = new Date().toISOString().split('T')[0];
       const userId = session?.user?.id;
-      const [urlRes, notiRes, sessionsRes, speakerRes, scheduledRes, phasesRes] = await Promise.all([
+      const [urlRes, notiRes, sessionsRes, speakerRes, scheduledRes, phasesRes, lunchesRes] = await Promise.all([
         fetch('/api/config/meeting-url'),
         fetch('/api/notifications'),
         fetch(`/api/sessions?date=${today}`),
         userId ? fetch(`/api/sessions?speakerId=${userId}`) : Promise.resolve(null),
         fetch(`/api/sessions?status=scheduled&after=${today}&limit=3`),
         fetch('/api/phases'),
+        userId ? fetch(`/api/lunch?status=planning,scheduled&participantId=${userId}`) : Promise.resolve(null),
       ]);
       if (urlRes.ok) { const u = await urlRes.json(); setMeetingUrl(u.url); }
       if (notiRes.ok) { const n = await notiRes.json(); setNotifications(n.notifications || []); }
@@ -164,6 +166,9 @@ export default function HomePage() {
       if (phasesRes.ok) {
         const phases: PhaseInfo[] = await phasesRes.json();
         setPhaseInfo(phases);
+      }
+      if (lunchesRes?.ok) {
+        setActiveLunches(await lunchesRes.json());
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -346,6 +351,40 @@ export default function HomePage() {
                 参加する →
               </a>
             </div>
+          )}
+
+          {/* ── Active Lunches ── */}
+          {activeLunches.length > 0 && (
+            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+              <div className="px-5 py-3.5 bg-blue-50 border-b border-blue-100 flex justify-between items-center">
+                <p className="text-sm font-bold text-[#00135D] flex items-center gap-2">
+                  <Utensils className="h-4 w-4 text-[#0070CC]" />進行中のランチ会
+                </p>
+                <Badge className="bg-[#0070CC] text-white hover:bg-[#0057A0]">
+                  {activeLunches.length}件
+                </Badge>
+              </div>
+              <CardContent className="p-0">
+                <div className="divide-y divide-[#E0E4EF]">
+                  {activeLunches.map(lunch => (
+                    <Link key={lunch.id} href={`/lunch/${lunch.id}`}>
+                      <div className="p-4 hover:bg-[#F8F9FC] transition-colors group flex flex-col gap-2">
+                        <div className="flex items-center justify-between">
+                          <p className="font-bold text-[#1A1D23] text-sm group-hover:text-[#0070CC] transition-colors">{lunch.title}</p>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Badge variant="outline" className={lunch.status === 'planning' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' : 'border-blue-300 text-blue-700 bg-blue-50'}>
+                            {lunch.status === 'planning' ? '準備中' : '開催予定'}
+                          </Badge>
+                          <span>{lunch.confirmedDate ? new Date(lunch.confirmedDate).toLocaleDateString('ja-JP') : '日程未定'}</span>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {/* ── Phase 1: コメント順（フルwidth） ── */}
