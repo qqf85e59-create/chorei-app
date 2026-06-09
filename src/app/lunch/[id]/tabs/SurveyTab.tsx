@@ -19,15 +19,13 @@ export default function SurveyTab({ event, role, userId, activeStaff = [], isPar
   const isAdmin = role === "admin";
   const responses = event.surveyResponses || [];
   
-  // If members are selected (length > 1 including organizer), use them.
-  // Otherwise, use activeStaff (all active participants) for the survey target pool.
-  const hasSelectedMembers = (event.participants?.length || 0) > 1;
-  const targetMembers = hasSelectedMembers 
-    ? event.participants.map((p: any) => p.user).filter((u: any) => u.lunchRole === 'participant')
-    : activeStaff;
+  // アンケートは「全ランチ対象メンバー」（lunchStatus=active かつ lunchRole=participant）に配布。
+  // 選定の有無に関わらず母集団は activeStaff で固定する。
+  const targetMembers = activeStaff;
 
-  // Calculate deadline from title (e.g. "仙台Synergy Bites 2026 June")
-  // If we can't parse it, default to the end of the current month
+  // Calculate deadline from title (e.g. "仙台Synergy Bites 2026 June").
+  // 締切は「開催月の10日」（上旬）。アンケート→日程登録→予約→開催 の時間軸を確保するため、
+  // 当月末ではなく上旬に締め切る。
   let deadlineDate = null;
   let isDeadlinePassed = false;
   try {
@@ -37,13 +35,13 @@ export default function SurveyTab({ event, role, userId, activeStaff = [], isPar
       const monthStr = match[2];
       const monthIndex = new Date(`${monthStr} 1, 2000`).getMonth();
       if (!isNaN(monthIndex)) {
-        // Last day of the parsed month
-        deadlineDate = new Date(year, monthIndex + 1, 0);
+        // 開催月の10日
+        deadlineDate = new Date(year, monthIndex, 10);
       }
     }
     if (!deadlineDate) {
       const now = new Date();
-      deadlineDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      deadlineDate = new Date(now.getFullYear(), now.getMonth(), 10);
     }
     // Set deadline time to 23:59:59
     deadlineDate.setHours(23, 59, 59, 999);
