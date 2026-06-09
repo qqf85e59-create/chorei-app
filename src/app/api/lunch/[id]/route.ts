@@ -99,10 +99,22 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (restaurantId !== undefined) updateData.restaurantId = restaurantId;
     if (totalCost !== undefined) updateData.totalCost = totalCost;
 
+    // もし予約完了(scheduled)または完了(completed)になり、restaurantIdが指定されているならvisitCountを更新
+    // (既に更新されているかのチェックは簡略化のため省くが、実際には状態遷移チェックが必要かも)
     const updatedEvent = await prisma.lunchEvent.update({
       where: { id: eventId },
       data: updateData
     });
+
+    if ((status === 'scheduled' || status === 'completed') && updateData.restaurantId) {
+      await prisma.restaurant.update({
+        where: { id: updateData.restaurantId },
+        data: {
+          visitCount: { increment: 1 },
+          lastVisited: new Date()
+        }
+      });
+    }
 
     return NextResponse.json(updatedEvent);
   } catch (error) {

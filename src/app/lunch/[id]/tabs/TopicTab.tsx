@@ -332,8 +332,8 @@ const TOPICS = [
   { category: "人生観・これからのビジョン", text: "結局のところ、人生で一番大切なことは何だと思うか" }
 ];
 
-export default function TopicTab({ eventId }: { eventId?: number }) {
-  // Use the eventId to deterministically pick 3 topics
+export default function TopicTab({ eventId, recentChoreiTopics = [] }: { eventId?: number, recentChoreiTopics?: any[] }) {
+  // Use the eventId to deterministically pick topics
   const seed = eventId || 1;
   
   // A simple pseudo-random number generator based on seed
@@ -342,11 +342,21 @@ export default function TopicTab({ eventId }: { eventId?: number }) {
     return x - Math.floor(x);
   };
 
-  const pickedTopics = [
-    TOPICS[Math.floor(getRandom(seed, 1) * TOPICS.length)],
-    TOPICS[Math.floor(getRandom(seed, 2) * TOPICS.length)],
-    TOPICS[Math.floor(getRandom(seed, 3) * TOPICS.length)],
-  ];
+  const pickedTopics = [];
+  
+  // もし最近の朝礼ネタがあれば、1つ目をそれに差し替える
+  if (recentChoreiTopics && recentChoreiTopics.length > 0) {
+    const choreiTopic = recentChoreiTopics[Math.floor(getRandom(seed, 1) * recentChoreiTopics.length)];
+    pickedTopics.push({
+      category: "話題の朝礼ネタ",
+      text: choreiTopic.topicText
+    });
+  } else {
+    pickedTopics.push(TOPICS[Math.floor(getRandom(seed, 1) * TOPICS.length)]);
+  }
+
+  pickedTopics.push(TOPICS[Math.floor(getRandom(seed, 2) * TOPICS.length)]);
+  pickedTopics.push(TOPICS[Math.floor(getRandom(seed, 3) * TOPICS.length)]);
 
   return (
     <div className="flex flex-col items-center justify-center py-6 space-y-8">
@@ -360,8 +370,8 @@ export default function TopicTab({ eventId }: { eventId?: number }) {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-5xl">
         {pickedTopics.map((topic, i) => (
-          <div key={i} className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow">
-            <span className="inline-block bg-blue-100 text-blue-800 text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 w-max">
+          <div key={i} className={`border rounded-xl p-6 shadow-sm flex flex-col h-full hover:shadow-md transition-shadow ${topic.category === "話題の朝礼ネタ" ? "bg-gradient-to-br from-yellow-50 to-orange-50 border-orange-200" : "bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"}`}>
+            <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider mb-4 w-max ${topic.category === "話題の朝礼ネタ" ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"}`}>
               {topic.category}
             </span>
             <h4 className="text-lg font-bold text-gray-800 leading-relaxed flex-grow">

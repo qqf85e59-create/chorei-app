@@ -9,6 +9,7 @@ declare module "next-auth" {
       id: string
       role: string
       grade: string
+      lunchStatus: string
     } & DefaultSession["user"]
   }
 
@@ -16,5 +17,6 @@ declare module "next-auth" {
     id: string
     role: string
     grade: string
+    lunchStatus: string
   }
 }

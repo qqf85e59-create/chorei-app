@@ -23,11 +23,13 @@ type Props = {
   previousParticipantIds: string[];
   role: string;
   userId: string;
+  recentChoreiTopics: any[];
+  restaurants: any[];
 };
 
 import { useSearchParams } from "next/navigation";
 
-export default function LunchManagementTabs({ event, activeStaff, previousParticipantIds, role, userId }: Props) {
+export default function LunchManagementTabs({ event, activeStaff, previousParticipantIds, role, userId, recentChoreiTopics, restaurants }: Props) {
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") as any;
   const isParticipant = event.participants.some((p) => p.userId === userId);
@@ -45,9 +47,7 @@ export default function LunchManagementTabs({ event, activeStaff, previousPartic
 
   const visibleTabs = tabs.filter(t => role === "admin" || !t.adminOnly);
 
-  if (role !== "admin" && !isParticipant) {
-    return <div className="p-4 text-center text-gray-500">あなたはこのランチ会の参加者ではありません。</div>;
-  }
+  // 閲覧権限はpage.tsxで検証済み (role === 'admin' || lunchStatus === 'active')
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -68,7 +68,7 @@ export default function LunchManagementTabs({ event, activeStaff, previousPartic
       </div>
 
       <div className="p-4 md:p-6 min-h-[400px]">
-        {activeTab === "topic" && <TopicTab eventId={event.id} />}
+        {activeTab === "topic" && <TopicTab eventId={event.id} recentChoreiTopics={recentChoreiTopics} />}
         {activeTab === "selection" && role === "admin" && (
           <SelectionTab 
             event={event} 
@@ -76,9 +76,9 @@ export default function LunchManagementTabs({ event, activeStaff, previousPartic
             previousParticipantIds={previousParticipantIds} 
           />
         )}
-        {activeTab === "schedule" && <ScheduleTab event={event} role={role} userId={userId} />}
-        {activeTab === "survey" && <SurveyTab event={event} role={role} userId={userId} />}
-        {activeTab === "restaurant" && role === "admin" && <RestaurantTab event={event} />}
+        {activeTab === "schedule" && <ScheduleTab event={event} role={role} userId={userId} isParticipant={isParticipant} />}
+        {activeTab === "survey" && <SurveyTab event={event} role={role} userId={userId} isParticipant={isParticipant} />}
+        {activeTab === "restaurant" && role === "admin" && <RestaurantTab event={event} restaurants={restaurants} />}
       </div>
     </div>
   );

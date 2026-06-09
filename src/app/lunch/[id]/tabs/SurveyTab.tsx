@@ -14,7 +14,7 @@ type EventWithSurvey = LunchEvent & {
 const GENRES = ["和食", "洋食", "中華", "イタリアン", "フレンチ", "焼肉", "寿司", "ラーメン", "カレー", "カフェ", "その他"];
 const BUDGETS = ["1,000円以内", "1,000円〜1,500円", "1,500円〜2,000円", "2,000円以上", "気にしない"];
 
-export default function SurveyTab({ event, role, userId }: { event: any, role: string, userId: string }) {
+export default function SurveyTab({ event, role, userId, isParticipant = true }: { event: any, role: string, userId: string, isParticipant?: boolean }) {
   const router = useRouter();
   const isAdmin = role === "admin";
   const responses = event.surveyResponses || [];
@@ -211,7 +211,8 @@ export default function SurveyTab({ event, role, userId }: { event: any, role: s
                 <button
                   key={g}
                   onClick={() => toggleGenre(g)}
-                  className={`px-4 py-2 rounded-full border font-medium text-sm transition-all ${
+                  disabled={!isParticipant}
+                  className={`px-4 py-2 rounded-full border font-medium text-sm transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                     selectedGenres.includes(g) 
                       ? "bg-[#00135D] text-white border-[#00135D] shadow-md" 
                       : "bg-white text-gray-700 border-gray-300 hover:border-[#00135D] hover:bg-blue-50"
@@ -223,14 +224,16 @@ export default function SurveyTab({ event, role, userId }: { event: any, role: s
             </div>
             
             <div className="flex justify-end mt-auto pt-4 border-t border-gray-100">
-              <button
-                onClick={() => handleNextStep(2)}
-                disabled={saving}
-                className="flex items-center gap-1 bg-[#00135D] text-white px-6 py-2.5 rounded-lg font-bold disabled:opacity-50 transition-colors"
-              >
-                {saving ? "保存中..." : "次へ"}
-                {!saving && <ChevronRight className="w-4 h-4" />}
-              </button>
+              {isParticipant && (
+                <button
+                  onClick={() => handleNextStep(2)}
+                  disabled={saving}
+                  className="flex items-center gap-1 bg-[#00135D] text-white px-6 py-2.5 rounded-lg font-bold disabled:opacity-50 transition-colors"
+                >
+                  {saving ? "保存中..." : "次へ"}
+                  {!saving && <ChevronRight className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -245,8 +248,9 @@ export default function SurveyTab({ event, role, userId }: { event: any, role: s
                 type="text"
                 value={area}
                 onChange={e => setArea(e.target.value)}
+                disabled={!isParticipant}
                 placeholder="例: 仙台駅西口周辺、オフィスから徒歩10分圏内"
-                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0070CC] focus:border-[#0070CC] outline-none text-base"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#0070CC] focus:border-[#0070CC] outline-none text-base disabled:bg-gray-100 disabled:cursor-not-allowed"
               />
               <p className="text-xs text-gray-400 mt-2 ml-1">※空欄でも構いません</p>
             </div>
@@ -258,14 +262,16 @@ export default function SurveyTab({ event, role, userId }: { event: any, role: s
               >
                 戻る
               </button>
-              <button
-                onClick={() => handleNextStep(3)}
-                disabled={saving}
-                className="flex items-center gap-1 bg-[#00135D] text-white px-6 py-2.5 rounded-lg font-bold disabled:opacity-50 transition-colors"
-              >
-                {saving ? "保存中..." : "次へ"}
-                {!saving && <ChevronRight className="w-4 h-4" />}
-              </button>
+              {isParticipant && (
+                <button
+                  onClick={() => handleNextStep(3)}
+                  disabled={saving}
+                  className="flex items-center gap-1 bg-[#00135D] text-white px-6 py-2.5 rounded-lg font-bold disabled:opacity-50 transition-colors"
+                >
+                  {saving ? "保存中..." : "次へ"}
+                  {!saving && <ChevronRight className="w-4 h-4" />}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -280,7 +286,8 @@ export default function SurveyTab({ event, role, userId }: { event: any, role: s
                 <button
                   key={b}
                   onClick={() => setBudget(b)}
-                  className={`w-full text-left px-5 py-4 rounded-xl border-2 font-bold transition-all ${
+                  disabled={!isParticipant}
+                  className={`w-full text-left px-5 py-4 rounded-xl border-2 font-bold transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
                     budget === b 
                       ? "bg-[#E8F2FB] border-[#0070CC] text-[#00135D]" 
                       : "bg-white border-gray-200 text-gray-600 hover:border-[#0070CC]/40 hover:bg-gray-50"
@@ -301,18 +308,20 @@ export default function SurveyTab({ event, role, userId }: { event: any, role: s
               >
                 戻る
               </button>
-              <button
-                onClick={handleComplete}
-                disabled={saving}
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg font-bold disabled:opacity-50 transition-colors shadow-md"
-              >
-                {saving ? "保存中..." : (
-                  <>
-                    <Save className="w-4 h-4" />
-                    回答を完了する
-                  </>
-                )}
-              </button>
+              {isParticipant && (
+                <button
+                  onClick={handleComplete}
+                  disabled={saving}
+                  className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-2.5 rounded-lg font-bold disabled:opacity-50 transition-colors shadow-md"
+                >
+                  {saving ? "保存中..." : (
+                    <>
+                      <Save className="w-4 h-4" />
+                      回答を完了する
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )}

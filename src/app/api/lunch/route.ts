@@ -39,11 +39,27 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    const url = new URL(req.url);
+    const statusParam = url.searchParams.get("status");
+    const participantId = url.searchParams.get("participantId");
+
+    const where: any = {};
+    if (statusParam) {
+      where.status = { in: statusParam.split(",") };
+    }
+    if (participantId) {
+      where.participants = {
+        some: { userId: participantId }
+      };
+    }
+
     const events = await prisma.lunchEvent.findMany({
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         organizer: true,
         restaurant: true,
+        participants: true,
       }
     });
 

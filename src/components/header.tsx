@@ -14,7 +14,7 @@ import { NotificationBell } from '@/components/notification-bell';
 
 interface NavItem {
   label: string; href: string;
-  icon: React.ReactNode; adminOnly?: boolean;
+  icon: React.ReactNode; adminOnly?: boolean; lunchOnly?: boolean;
 }
 
 const navItems: NavItem[] = [
@@ -27,7 +27,7 @@ const navItems: NavItem[] = [
   { label:'参加者管理',     href:'/members',   icon:<Users className="h-3.5 w-3.5" />, adminOnly:true },
   { label:'グランドルール', href:'/grand-rule', icon:<FileText className="h-3.5 w-3.5" /> },
   { label:'会議URL設定',    href:'/settings/meeting-url', icon:<Video className="h-3.5 w-3.5" />, adminOnly:true },
-  { label:'ランチ管理',     href:'/history',   icon:<Utensils className="h-3.5 w-3.5" /> },
+  { label:'ランチ管理',     href:'/history',   icon:<Utensils className="h-3.5 w-3.5" />, lunchOnly: true },
 ];
 
 export function Header() {
@@ -36,8 +36,11 @@ export function Header() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const userRole = (session?.user as { role?: string })?.role || 'member';
+  const userLunchStatus = (session?.user as any)?.lunchStatus || 'inactive'; // fallback to inactive if missing
   const isAdmin = userRole === 'admin';
-  const filteredItems = navItems.filter(item => !item.adminOnly || isAdmin);
+  const filteredItems = navItems.filter(item => 
+    isAdmin || (!item.adminOnly && (!item.lunchOnly || userLunchStatus === 'active'))
+  );
 
   // Auto-open hamburger with 30-minute sessionStorage throttle
   useEffect(() => {

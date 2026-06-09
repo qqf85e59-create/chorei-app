@@ -13,7 +13,11 @@ export default async function LunchManagementPage({ params }: { params: Promise<
   if (!session) {
     redirect("/login");
   }
-  const role = session.user.role;
+  const { role, lunchStatus } = session.user as any;
+
+  if (role !== "admin" && lunchStatus !== "active") {
+    redirect("/home");
+  }
 
   const eventId = parseInt((await params).id);
   const event = await prisma.lunchEvent.findUnique({
@@ -21,14 +25,19 @@ export default async function LunchManagementPage({ params }: { params: Promise<
     include: {
       organizer: true,
       restaurant: true,
-      participants: {
-        include: { user: true }
-      },
-      scheduleCandidates: {
-        include: { responses: true }
-      },
-      surveyResponses: true,
+      participants: { include: { user: true } },
+      scheduleCandidates: { include: { responses: true } },
+      surveyResponses: { include: { user: true } }
     }
+  });
+
+  const recentChoreiTopics = await prisma.topic.findMany({
+    orderBy: { createdAt: 'desc' },
+    take: 5,
+  });
+
+  const restaurants = await prisma.restaurant.findMany({
+    orderBy: { name: 'asc' }
   });
 
   if (!event) {
@@ -63,11 +72,13 @@ export default async function LunchManagementPage({ params }: { params: Promise<
         
         <Suspense fallback={<div>Loading tabs...</div>}>
           <LunchManagementTabs 
-            event={event as any} 
-            activeStaff={activeStaff}
-            previousParticipantIds={previousParticipantIds}
+            event={event} 
+            activeStaff={activeStaff} 
+            previousParticipantIds={previousParticipantIds} 
             role={role}
             userId={session.user.id}
+            recentChoreiTopics={recentChoreiTopics}
+            restaurants={restaurants}
           />
         </Suspense>
       </main>

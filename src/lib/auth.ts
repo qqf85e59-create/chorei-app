@@ -35,6 +35,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           email: user.email,
           role: user.role,
           grade: user.grade,
+          lunchStatus: user.lunchStatus,
         };
       },
     }),
@@ -48,6 +49,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.email = user.email;
         token.role = user.role;
         token.grade = user.grade;
+        token.lunchStatus = user.lunchStatus;
       }
       return token;
     },
@@ -58,6 +60,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         session.user.email = token.email as string;
         session.user.role = token.role as string;
         session.user.grade = token.grade as string;
+        session.user.lunchStatus = token.lunchStatus as string;
       }
       return session;
     },

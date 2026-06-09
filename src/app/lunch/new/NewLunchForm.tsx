@@ -42,7 +42,7 @@ export default function NewLunchForm({ organizers, defaultOrganizerId }: Props) 
       const res = await fetch("/api/lunch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: selectedMonth.title, organizerId: parseInt(organizerId) }),
+        body: JSON.stringify({ title: selectedMonth.title, organizerId }),
       });
 
       if (res.ok) {

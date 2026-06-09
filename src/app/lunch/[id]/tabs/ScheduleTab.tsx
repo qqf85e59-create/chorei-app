@@ -10,9 +10,10 @@ type Props = {
   event: LunchEvent & { scheduleCandidates: (ScheduleCandidate & { responses: ScheduleResponse[] })[] };
   role: string;
   userId: string;
+  isParticipant?: boolean;
 };
 
-export default function ScheduleTab({ event, role, userId }: Props) {
+export default function ScheduleTab({ event, role, userId, isParticipant = true }: Props) {
   const router = useRouter();
   const [newDate, setNewDate] = useState("");
   const [newNote, setNewNote] = useState("");
@@ -208,6 +209,7 @@ export default function ScheduleTab({ event, role, userId }: Props) {
                           <button
                             key={option}
                             onClick={() => setResponses(prev => ({ ...prev, [c.id]: option }))}
+                            disabled={!isParticipant}
                             className={`flex-1 py-3 text-lg font-bold rounded-lg transition-colors border ${
                               myResponse === option
                                 ? option === "○" ? "bg-green-100 border-green-500 text-green-700"
@@ -236,7 +238,7 @@ export default function ScheduleTab({ event, role, userId }: Props) {
               <p className="text-sm text-gray-500">候補日が登録されていません</p>
             )}
 
-            {!isAdmin && event.scheduleCandidates.length > 0 && !event.confirmedDate && (
+            {!isAdmin && event.scheduleCandidates.length > 0 && !event.confirmedDate && isParticipant && (
               <button
                 onClick={handleMemberSubmit}
                 disabled={loading || Object.keys(responses).length !== event.scheduleCandidates.length}

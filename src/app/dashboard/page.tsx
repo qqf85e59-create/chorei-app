@@ -11,7 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import {
   CalendarDays, Users, RotateCcw, BookOpen, TrendingUp, Mic,
   AlertTriangle, UserCheck, UserX, UserMinus, Clock, Dices,
-  MessageSquare, FileText, Video,
+  MessageSquare, FileText, Video, Utensils, ChevronRight
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
@@ -51,6 +51,7 @@ export default function DashboardPage() {
   const [todaySession, setTodaySession] = useState<SessionData | null>(null);
   const [attendance, setAttendance] = useState<AttendanceData[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
+  const [activeLunches, setActiveLunches] = useState<any[]>([]);
   const [meetingUrl, setMeetingUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -65,10 +66,11 @@ export default function DashboardPage() {
   async function fetchData() {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const [urlRes, sessionsRes, alertsRes] = await Promise.all([
+      const [urlRes, sessionsRes, alertsRes, lunchesRes] = await Promise.all([
         fetch('/api/config/meeting-url'),
         fetch(`/api/sessions?date=${today}`),
         fetch('/api/alerts'),
+        fetch('/api/lunch?status=planning,scheduled'),
       ]);
       if (urlRes.ok) { const u = await urlRes.json(); setMeetingUrl(u.url); }
       const sessions = await sessionsRes.json();
@@ -78,6 +80,7 @@ export default function DashboardPage() {
         setAttendance(await attRes.json());
       }
       setAlerts(await alertsRes.json());
+      if (lunchesRes.ok) setActiveLunches(await lunchesRes.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }
@@ -342,6 +345,40 @@ export default function DashboardPage() {
                       )}
                     </div>
                   ))}
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Active Lunches */}
+            {activeLunches.length > 0 && (
+              <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
+                <div className="px-5 py-3.5 bg-blue-50 border-b border-blue-100 flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-[#00135D] flex items-center gap-2">
+                    <Utensils className="h-4 w-4 text-[#0070CC]" />進行中のランチ会
+                  </h3>
+                  <Badge className="bg-[#0070CC] text-white hover:bg-[#0057A0]">
+                    {activeLunches.length}件
+                  </Badge>
+                </div>
+                <CardContent className="p-0">
+                  <div className="divide-y divide-[#E0E4EF]">
+                    {activeLunches.map(lunch => (
+                      <Link key={lunch.id} href={`/lunch/${lunch.id}`}>
+                        <div className="p-4 hover:bg-[#F8F9FC] transition-colors group flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-[#1A1D23] text-sm group-hover:text-[#0070CC] transition-colors">{lunch.title}</p>
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+                              <Badge variant="outline" className={lunch.status === 'planning' ? 'border-yellow-300 text-yellow-700 bg-yellow-50' : 'border-blue-300 text-blue-700 bg-blue-50'}>
+                                {lunch.status === 'planning' ? '準備中' : '開催予定'}
+                              </Badge>
+                              {lunch.confirmedDate ? new Date(lunch.confirmedDate).toLocaleDateString('ja-JP') : '日程未定'}
+                            </p>
+                          </div>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </CardContent>
               </Card>
             )}
