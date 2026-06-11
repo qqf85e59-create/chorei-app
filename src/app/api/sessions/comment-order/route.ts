@@ -43,9 +43,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ commentOrder: [] });
     }
 
-    // 全ユーザーを等級昇順で取得
+    // 朝礼参加対象ユーザーを等級昇順で取得
     const allUsers = await prisma.user.findMany({
-      where: { deletedAt: null },
+      where: { choreiStatus: 'active', deletedAt: null },
       select: { id: true, name: true, grade: true },
     });
 
