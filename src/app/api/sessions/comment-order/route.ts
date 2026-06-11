@@ -1,17 +1,29 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
-import { GRADE_ORDER } from '@/lib/constants';
 
 /**
  * GET /api/sessions/comment-order?sessionId=N
  *
  * Phase 1 のコメント順を返す。
- * - 発話者を除く全メンバーを等級昇順に並べる
+ * - 発話者を除く全メンバーをセッションIDをシードにしたランダム順に並べる
+ *   （同じセッションなら誰がいつ見ても同じ順序になる決定的シャッフル）
  * - 欠席・聴講のみ の人は commentPosition = null（コメントしない）
  * - 途中退出は commentPosition あり（参加中にコメント）
  * - 欠席申請 / 出席ステータス を両方チェックして最新の状態を反映
  */
+
+// シード付き擬似乱数（mulberry32）。サーバー再起動やリクエスト間でも
+// 同じシードからは必ず同じ乱数列が得られる
+function mulberry32(seed: number) {
+  return () => {
+    seed |= 0;
+    seed = (seed + 0x6d2b79f5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
 export async function GET(request: Request) {
   try {
     const session = await requireUser();
@@ -61,15 +73,17 @@ export async function GET(request: Request) {
       attendanceMap.set(att.userId, att.status);
     }
 
-    // 発話者を除き、等級昇順にソート
+    // 発話者を除き、セッションIDをシードにランダムシャッフル
+    // （DBの取得順に依存しないよう、シャッフル前の基準順を ID 昇順で固定）
     const commenters = allUsers
       .filter(u => u.id !== targetSession.speakerId)
-      .sort((a, b) => {
-        const order = GRADE_ORDER as readonly string[];
-        const ai = order.indexOf(a.grade);
-        const bi = order.indexOf(b.grade);
-        return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
-      });
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    const rand = mulberry32(sessionId);
+    for (let i = commenters.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [commenters[i], commenters[j]] = [commenters[j], commenters[i]];
+    }
 
     let position = 1;
     const commentOrder = commenters.map(u => {
