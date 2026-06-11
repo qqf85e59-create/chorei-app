@@ -96,7 +96,11 @@ export function formatDateUTC(dateStr: string): string {
   return `${d.getUTCMonth() + 1}月${d.getUTCDate()}日（${DAY_LABELS[d.getUTCDay()]}）`;
 }
 
-/** 今日の日付文字列を返す（YYYY-MM-DD, UTC基準） */
+/**
+ * アプリ上の「今日」の日付文字列を返す（YYYY-MM-DD）。
+ * 日付の切り替わりは JST 7:00（毎朝の確定 Cron と同時刻）。
+ * JST(UTC+9) で 7:00 を引いた時点の日付 = UTC 現在時刻 +2h の日付。
+ */
 export function getTodayStr(): string {
-  return new Date().toISOString().split('T')[0];
+  return new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString().split('T')[0];
 }

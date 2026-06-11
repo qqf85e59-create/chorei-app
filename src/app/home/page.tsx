@@ -124,7 +124,7 @@ export default function HomePage() {
 
   async function fetchData() {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayStr();
       const userId = session?.user?.id;
       const [urlRes, notiRes, sessionsRes, speakerRes, scheduledRes, phasesRes, lunchesRes] = await Promise.all([
         fetch('/api/config/meeting-url'),

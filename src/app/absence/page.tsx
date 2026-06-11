@@ -13,7 +13,7 @@ import {
 import {
   UserMinus, Send, CheckCircle2, CalendarDays, AlertCircle, Trash2, Info,
 } from 'lucide-react';
-import { DAY_LABELS } from '@/lib/constants';
+import { DAY_LABELS, getTodayStr } from '@/lib/constants';
 
 // 区分の日本語ラベル
 const TYPE_LABELS: Record<string, string> = {
@@ -82,8 +82,8 @@ export default function AbsencePage() {
       ]);
       const sd: SessionData[] = await sr.json();
       const rd = await rr.json();
-      // 今日以降のセッションのみ（UTC 基準で比較）
-      const todayStr = new Date().toISOString().split('T')[0];
+      // 今日以降のセッションのみ（JST 7:00 切り替えの「今日」基準）
+      const todayStr = getTodayStr();
       setSessions(sd.filter(s => s.date.split('T')[0] >= todayStr));
       setMyRequests(Array.isArray(rd) ? rd : []);
     } catch (e) { console.error(e); }
@@ -134,7 +134,7 @@ export default function AbsencePage() {
   }
 
   // 今日以降の申告中予定
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayStr();
   const activeRequests = myRequests.filter(
     r => r.session && r.session.date.split('T')[0] >= todayStr
   );

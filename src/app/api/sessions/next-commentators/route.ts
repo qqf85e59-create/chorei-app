@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
+import { getTodayStr } from '@/lib/constants';
 
 // GET /api/sessions/next-commentators
 // Returns the next scheduled session (future, status=scheduled) with its commentators,
@@ -12,9 +13,9 @@ export async function GET() {
   try {
     const session = await requireUser();
 
-    // Today at 00:00 - include today's session if not yet done
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    // アプリ上の「今日」(JST 7:00 切り替え) の 0:00 UTC。
+    // セッション date は UTC 0:00 で保存されているため、これと比較する
+    const todayStart = new Date(`${getTodayStr()}T00:00:00.000Z`);
 
     // Find the next upcoming session (global view - just the next one)
     const next = await prisma.session.findFirst({

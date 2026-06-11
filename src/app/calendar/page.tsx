@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CalendarDays, ChevronLeft, ChevronRight, Mic, BookOpen } from 'lucide-react';
-import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
+import { DAY_LABELS, GRADE_LABELS, getTodayStr } from '@/lib/constants';
 
 interface SessionData {
   id: number;
@@ -54,7 +54,7 @@ export default function CalendarPage() {
   const month = currentDate.getMonth();
   const firstDow = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayStr();
 
   const holidayMap = new Map(holidays.map(h => [new Date(h.date).toISOString().split('T')[0], h]));
   const sessionsByDate = new Map<string, SessionData[]>();

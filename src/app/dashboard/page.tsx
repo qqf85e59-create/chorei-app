@@ -13,7 +13,7 @@ import {
   AlertTriangle, UserCheck, UserX, UserMinus, Clock, Dices,
   MessageSquare, FileText, Video, Utensils, ChevronRight
 } from 'lucide-react';
-import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT } from '@/lib/constants';
+import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT, getTodayStr } from '@/lib/constants';
 import { SpeechTimer } from '@/components/ui/timer';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 
@@ -65,7 +65,7 @@ export default function DashboardPage() {
 
   async function fetchData() {
     try {
-      const today = new Date().toISOString().split('T')[0];
+      const today = getTodayStr();
       const [urlRes, sessionsRes, alertsRes, lunchesRes] = await Promise.all([
         fetch('/api/config/meeting-url'),
         fetch(`/api/sessions?date=${today}`),
