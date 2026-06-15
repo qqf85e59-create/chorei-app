@@ -216,7 +216,10 @@ export default function DashboardPage() {
 
                     <Separator className="bg-[#E0E4EF]" />
 
-                    {/* Commentator lottery */}
+                    {/* Commentator lottery — Phase 2/3 のみ。
+                        Phase1 は参加者全員がコメント順で発言するため応答者（コメンテーター）の概念がなく、
+                        抽選APIは Phase1 を 400 で拒否する。ボタンを出すと必ずエラーになるため出し分ける。 */}
+                    {todaySession.phase.phaseNumber !== 1 ? (
                     <div>
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium flex items-center gap-1.5">
@@ -247,6 +250,11 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
+                    ) : (
+                      <div className="rounded-lg bg-[#F8F9FC] border border-[#E0E4EF] p-3 text-xs text-muted-foreground">
+                        第1フェーズは参加者全員が順番にコメントするため、応答者（コメンテーター）の抽選はありません。
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center py-10">

@@ -148,8 +148,13 @@ export async function reselectCommentators(sessionId: number, tx: TxClient = pri
 
   const unavailable = await getUnavailableUserIds(sessionId, tx);
 
+  // 朝礼参加対象（choreiStatus: 'active'）かつ未削除のメンバーのみを候補にする。
   const candidateUsers = await tx.user.findMany({
-    where: targetSession.speakerId ? { id: { not: targetSession.speakerId } } : undefined,
+    where: {
+      deletedAt: null,
+      choreiStatus: 'active',
+      ...(targetSession.speakerId ? { id: { not: targetSession.speakerId } } : {}),
+    },
   });
   const availableUsers = candidateUsers.filter((u) => !unavailable.has(u.id));
 

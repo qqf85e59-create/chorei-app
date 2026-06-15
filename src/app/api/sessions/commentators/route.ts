@@ -32,10 +32,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. サブ発話者候補となる全ユーザーを取得（メイン発話者は除外）
+    // 2. サブ発話者候補となるユーザーを取得（メイン発話者は除外）
+    //    朝礼参加対象（choreiStatus: 'active'）に限定する。
+    //    これを忘れると朝礼参加対象外/退会予定メンバーが応答者に抽選されてしまう。
     const candidateUsers = await prisma.user.findMany({
       where: {
         deletedAt: null,
+        choreiStatus: 'active',
         ...(targetSession.speakerId ? { id: { not: targetSession.speakerId } } : {})
       },
     });
