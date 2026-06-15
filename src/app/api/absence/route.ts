@@ -71,12 +71,13 @@ export async function POST(request: Request) {
     });
 
     // Auto-adjustment (speaker reflow, re-select commentators, minimum attendance check).
-    // Wrapped in a transaction so a partial failure cannot leave the schedule
-    // inconsistent (e.g. speaker cleared but successors not pulled forward).
+    // Neon serverless on Vercel はインタラクティブtrxを安定維持できず500になるため、
+    // $transaction(async tx) を使わず prisma で逐次実行する（cron / DELETE と同様）。
+    // 以前は $transaction でラップしており、欠席申請時に応答者の再抽選が必ず失敗していた。
     // Errors here are logged but do not block the response — the absence itself is already saved.
     let report;
     try {
-      report = await prisma.$transaction((tx) => adjustForAbsence(sessionId, userId, tx));
+      report = await adjustForAbsence(sessionId, userId, prisma);
     } catch (adjustErr) {
       console.error('[POST /api/absence] adjustForAbsence error:', adjustErr);
       report = {
