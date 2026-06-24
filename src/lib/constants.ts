@@ -31,6 +31,10 @@ export const SESSION_DAYS = [2, 4, 5] as const;
 // 翌日以降の予定セッションのみ「発話回数の均等化」再調整の対象とする。
 export const ROTATION_FIXED_UNTIL = '2026-06-25';
 
+// 連続する何回の中で同一発話者を出さないか（クールダウン窓）。
+// 4 = 直前3回に登壇した人は選ばない（向こう4回は同じ人にならない）。
+export const ROTATION_NO_REPEAT_WINDOW = 4;
+
 export const DAY_LABELS: Record<number, string> = {
   0: '日',
   1: '月',

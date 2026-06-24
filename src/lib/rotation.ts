@@ -1,6 +1,11 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from './prisma';
-import { GRADE_ORDER, SESSION_DAYS, ROTATION_FIXED_UNTIL } from './constants';
+import {
+  GRADE_ORDER,
+  SESSION_DAYS,
+  ROTATION_FIXED_UNTIL,
+  ROTATION_NO_REPEAT_WINDOW,
+} from './constants';
 
 type TxClient = Prisma.TransactionClient | PrismaClient;
 
@@ -31,8 +36,10 @@ export type RebalanceResult = {
  * - `cutoffStr`（既定 = ROTATION_FIXED_UNTIL）「まで」のセッションは確定済みとして
  *   発話者を一切変更しない（過去の輪番は固定）。
  * - 翌日以降の status='scheduled' のセッションについて、発話者を貪欲法で再割当する：
- *   各回で「これまでの発話回数が最も少ない」現役メンバーを選ぶ。
- *   回数が同点の場合は「直前の発話者」を避けることで連続登壇（集中）を防ぐ。
+ *   直近 (ROTATION_NO_REPEAT_WINDOW - 1) 回に登壇した人を除外したうえで、
+ *   「これまでの発話回数が最も少ない」現役メンバーを選ぶ（同点はランダム）。
+ *   これにより連続する ROTATION_NO_REPEAT_WINDOW 回に同一発話者が出ない。
+ *   （候補が枯渇する小規模時のみ、除外を緩めて回数最少を優先する。）
  * - 棚卸し回など特別セッション（adminNote に「棚卸し/振り返り」を含む）は対象外。
  *
  * 計画用の操作のため、個別の通知は発行しない（当日分の繰り上げは daily-finalize が担当）。
@@ -58,15 +65,22 @@ export async function rebalanceFutureSpeakers(
   const counts = new Map<string, number>();
   for (const m of members) counts.set(m.id, 0);
 
-  // 固定セッション（cutoff まで）で基準回数を積み上げ、直前発話者を求める。
-  let prevSpeaker: string | null = null;
+  // クールダウン窓：直近 (window - 1) スロット分の発話者（nullスロットも1枠として保持）。
+  const cooldown = Math.max(0, ROTATION_NO_REPEAT_WINDOW - 1);
+  const recent: (string | null)[] = [];
+  const pushRecent = (id: string | null) => {
+    recent.push(id);
+    while (recent.length > cooldown) recent.shift();
+  };
+
+  // 固定セッション（cutoff まで）で基準回数を積み上げ、直近発話者の窓を作る。
   for (const s of sessions) {
     if (s.date.getTime() > cutoff) continue;
     if (isReviewSession(s.adminNote)) continue;
     if (s.speakerId && memberIds.has(s.speakerId)) {
       counts.set(s.speakerId, (counts.get(s.speakerId) ?? 0) + 1);
     }
-    if (s.speakerId) prevSpeaker = s.speakerId;
+    pushRecent(s.speakerId ?? null);
   }
 
   // 同点時の並びを散らすためのランダムキー（メンバーごとに固定）。
@@ -85,20 +99,20 @@ export async function rebalanceFutureSpeakers(
   for (const s of future) {
     if (members.length === 0) break;
 
-    // (発話回数 昇順, 直前発話者は後回し, ランダム) で最良の1名を選ぶ。
+    // 直近 (window - 1) 回の発話者は除外。除外で候補が無くなる小規模時のみ全員から選ぶ。
+    const blocked = new Set(recent.filter((id): id is string => id !== null));
+    const pool = members.filter((m) => !blocked.has(m.id));
+    const candidates = pool.length > 0 ? pool : members;
+
+    // (発話回数 昇順, ランダム) で最少回数の1名を選ぶ。
     let best: string | null = null;
-    let bestKey: [number, number, number] | null = null;
-    for (const m of members) {
-      const key: [number, number, number] = [
-        counts.get(m.id) ?? 0,
-        m.id === prevSpeaker ? 1 : 0,
-        rnd.get(m.id)!,
-      ];
+    let bestKey: [number, number] | null = null;
+    for (const m of candidates) {
+      const key: [number, number] = [counts.get(m.id) ?? 0, rnd.get(m.id)!];
       if (
         bestKey === null ||
         key[0] < bestKey[0] ||
-        (key[0] === bestKey[0] && key[1] < bestKey[1]) ||
-        (key[0] === bestKey[0] && key[1] === bestKey[1] && key[2] < bestKey[2])
+        (key[0] === bestKey[0] && key[1] < bestKey[1])
       ) {
         best = m.id;
         bestKey = key;
@@ -111,7 +125,7 @@ export async function rebalanceFutureSpeakers(
       await tx.session.update({ where: { id: s.id }, data: { speakerId: best } });
       changed++;
     }
-    prevSpeaker = best;
+    pushRecent(best);
   }
 
   const result: SpeakerCount[] = members
