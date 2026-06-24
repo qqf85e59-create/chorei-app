@@ -39,10 +39,15 @@ export default function RotationPage() {
 
   const isAdmin = (session?.user as { role?: string })?.role === 'admin';
 
-  useEffect(() => { fetchData(); }, []);
+  // admin が輪番計画を開いた時点で「未定」を自動補充（なか4回は飛ばす）。
+  // isAdmin が false→true になった時にも再実行され、未定が残らないようにする。
+  useEffect(() => { fetchData(); }, [isAdmin]);
 
   async function fetchData() {
     try {
+      if (isAdmin) {
+        try { await fetch('/api/rotation/fill', { method: 'POST' }); } catch { /* 補充失敗は致命的でない */ }
+      }
       const [sr, ur, tr] = await Promise.all([fetch('/api/sessions'), fetch('/api/users'), fetch('/api/topics')]);
       setSessions(await sr.json()); setUsers(await ur.json()); setTopics(await tr.json());
     } catch (e) { console.error(e); }

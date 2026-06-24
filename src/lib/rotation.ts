@@ -141,6 +141,107 @@ export async function rebalanceFutureSpeakers(
 }
 
 /**
+ * 「未定（speaker=null）」の予定セッションを自動で埋める（シャッフル補充）。
+ *
+ * - rebalance と違い、既に発話者が決まっているセッションは一切変更しない。
+ *   発話者が null の未来セッションだけを補充するので、毎朝Cronで呼んでも
+ *   割当がバタつかない。
+ * - cutoff「まで」の固定セッションや中止・棚卸し回は対象外。
+ * - 補充時は直近 (ROTATION_NO_REPEAT_WINDOW - 1) 回の発話者を避け（なか4回飛ばす）、
+ *   全体の発話回数が最少の現役メンバーを選ぶ（同点ランダム）。候補が枯渇する小規模時のみ緩和。
+ * - 現役メンバーが1名以上いれば未来の null は必ず埋まる（＝未定が残らない）。
+ *
+ * @returns 補充した（null→発話者を割り当てた）セッション数
+ */
+export async function fillEmptySpeakers(
+  cutoffStr: string = ROTATION_FIXED_UNTIL,
+  tx: TxClient = prisma
+): Promise<number> {
+  const cutoff = new Date(`${cutoffStr}T23:59:59.999Z`).getTime();
+
+  const members = await tx.user.findMany({
+    where: { choreiStatus: 'active', deletedAt: null },
+  });
+  if (members.length === 0) return 0;
+  const memberIds = new Set(members.map((m) => m.id));
+
+  const sessions = await tx.session.findMany({
+    where: { status: { not: 'cancelled' } },
+    orderBy: { date: 'asc' },
+  });
+
+  // 全体の発話回数（過去＋割当済み未来）。補充の偏りを抑えるため全期間で集計。
+  const counts = new Map<string, number>();
+  for (const m of members) counts.set(m.id, 0);
+  for (const s of sessions) {
+    if (isReviewSession(s.adminNote)) continue;
+    if (s.speakerId && memberIds.has(s.speakerId)) {
+      counts.set(s.speakerId, (counts.get(s.speakerId) ?? 0) + 1);
+    }
+  }
+
+  const rnd = new Map<string, number>();
+  for (const m of members) rnd.set(m.id, Math.random());
+
+  const cooldown = Math.max(0, ROTATION_NO_REPEAT_WINDOW - 1);
+  const recent: (string | null)[] = [];
+  const pushRecent = (id: string | null) => {
+    recent.push(id);
+    while (recent.length > cooldown) recent.shift();
+  };
+
+  let filled = 0;
+  for (const s of sessions) {
+    // 棚卸し回はそのまま（窓だけ進める）。
+    if (isReviewSession(s.adminNote)) {
+      pushRecent(s.speakerId ?? null);
+      continue;
+    }
+    // 既に決まっている発話者は尊重し、窓を進めるだけ。
+    if (s.speakerId) {
+      pushRecent(s.speakerId);
+      continue;
+    }
+    // ここから先は speaker=null。補充対象は cutoff より後の予定セッションのみ。
+    const isFutureScheduled = s.date.getTime() > cutoff && s.status === 'scheduled';
+    if (!isFutureScheduled) {
+      pushRecent(null);
+      continue;
+    }
+
+    // 直近窓の登壇者を除外（なか4回飛ばす）。枯渇時のみ全員から。
+    const blocked = new Set(recent.filter((id): id is string => id !== null));
+    const pool = members.filter((m) => !blocked.has(m.id));
+    const candidates = pool.length > 0 ? pool : members;
+
+    let best: string | null = null;
+    let bestKey: [number, number] | null = null;
+    for (const m of candidates) {
+      const key: [number, number] = [counts.get(m.id) ?? 0, rnd.get(m.id)!];
+      if (
+        bestKey === null ||
+        key[0] < bestKey[0] ||
+        (key[0] === bestKey[0] && key[1] < bestKey[1])
+      ) {
+        best = m.id;
+        bestKey = key;
+      }
+    }
+    if (!best) {
+      pushRecent(null);
+      continue;
+    }
+
+    counts.set(best, (counts.get(best) ?? 0) + 1);
+    await tx.session.update({ where: { id: s.id }, data: { speakerId: best } });
+    filled++;
+    pushRecent(best);
+  }
+
+  return filled;
+}
+
+/**
  * Generate rotation schedule for Phase 1
  */
 export async function generateRotation(
