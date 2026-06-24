@@ -26,6 +26,11 @@ export const JOB_LABELS: Record<string, string> = {
 // Session days: Tue=2, Thu=4, Fri=5
 export const SESSION_DAYS = [2, 4, 5] as const;
 
+// 発話者（スピーカー）輪番の固定境界日。
+// この日「まで」（含む）のセッションは確定済みとして発話者を一切変更しない。
+// 翌日以降の予定セッションのみ「発話回数の均等化」再調整の対象とする。
+export const ROTATION_FIXED_UNTIL = '2026-06-25';
+
 export const DAY_LABELS: Record<number, string> = {
   0: '日',
   1: '月',

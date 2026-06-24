@@ -11,8 +11,8 @@ import { Textarea } from '@/components/ui/textarea';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { RotateCcw, Pencil, Wand2, Filter } from 'lucide-react';
-import { DAY_LABELS, GRADE_LABELS } from '@/lib/constants';
+import { RotateCcw, Pencil, Wand2, Filter, Scale, Mic } from 'lucide-react';
+import { DAY_LABELS, GRADE_LABELS, ROTATION_FIXED_UNTIL } from '@/lib/constants';
 
 interface SessionData {
   id: number; date: string; startTime: string; endTime: string;
@@ -35,6 +35,7 @@ export default function RotationPage() {
   const [editSession, setEditSession] = useState<SessionData | null>(null);
   const [editForm, setEditForm] = useState({ speakerId:'', topicId:'', startTime:'', endTime:'', status:'', adminNote:'' });
   const [generating, setGenerating] = useState(false);
+  const [rebalancing, setRebalancing] = useState(false);
 
   const isAdmin = (session?.user as { role?: string })?.role === 'admin';
 
@@ -66,6 +67,31 @@ export default function RotationPage() {
     catch (e) { console.error(e); }
     finally { setGenerating(false); }
   }
+  async function handleRebalance() {
+    if (!confirm(`${ROTATION_FIXED_UNTIL} までの発話者は変更せず、それ以降の予定セッションの発話者を「発話回数が均等になる」よう割り当て直します。実行しますか？`)) return;
+    setRebalancing(true);
+    try {
+      const res = await fetch('/api/rotation/rebalance', { method:'POST' });
+      if (res.ok) { const r = await res.json(); alert(`均等化しました（${r.changed}件の発話者を変更）`); fetchData(); }
+      else alert('均等化に失敗しました。');
+    } catch (e) { console.error(e); }
+    finally { setRebalancing(false); }
+  }
+
+  // 発話回数の集計（中止セッションを除く）。表示用にメンバーごとの担当回数を出す。
+  const speakerCounts = (() => {
+    const map = new Map<string, number>();
+    for (const s of sessions) {
+      if (s.status === 'cancelled') continue;
+      if (!s.speaker) continue;
+      if (s.adminNote && /棚卸し|振り返り/.test(s.adminNote)) continue;
+      map.set(s.speaker.id, (map.get(s.speaker.id) ?? 0) + 1);
+    }
+    return users
+      .map(u => ({ ...u, count: map.get(u.id) ?? 0 }))
+      .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+  })();
+  const maxSpeakerCount = speakerCounts.reduce((m, u) => Math.max(m, u.count), 0);
 
   const filtered = sessions.filter(s => {
     if (filterSpeaker !== 'all' && s.speaker?.id !== filterSpeaker) return false;
@@ -110,13 +136,47 @@ export default function RotationPage() {
             <p className="text-sm text-muted-foreground mt-1">発話者・主題のスケジュールを管理します</p>
           </div>
           {isAdmin && (
-            <Button onClick={handleGenerate} disabled={generating}
-              className="bg-[#00135D] hover:bg-[#1E3A8A] text-white shadow-[0_3px_10px_rgba(0,19,93,0.25)] rounded-lg gap-1.5">
-              <Wand2 className={`h-4 w-4 ${generating ? 'animate-spin' : ''}`} />
-              {generating ? '生成中...' : '自動生成'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={handleRebalance} disabled={rebalancing} variant="outline"
+                className="border-[#BDD9F5] text-[#0070CC] hover:bg-[#E8F2FB] rounded-lg gap-1.5">
+                <Scale className={`h-4 w-4 ${rebalancing ? 'animate-pulse' : ''}`} />
+                {rebalancing ? '均等化中...' : '発話回数を均等化'}
+              </Button>
+              <Button onClick={handleGenerate} disabled={generating}
+                className="bg-[#00135D] hover:bg-[#1E3A8A] text-white shadow-[0_3px_10px_rgba(0,19,93,0.25)] rounded-lg gap-1.5">
+                <Wand2 className={`h-4 w-4 ${generating ? 'animate-spin' : ''}`} />
+                {generating ? '生成中...' : '自動生成'}
+              </Button>
+            </div>
           )}
         </div>
+
+        {/* 発話回数サマリ */}
+        <Card className="border-[#E0E4EF] shadow-[0_2px_8px_rgba(0,19,93,0.05)] rounded-xl mb-5">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-bold text-[#00135D] flex items-center gap-2">
+                <Mic className="h-4 w-4 text-[#0070CC]" />発話回数（中止を除く・予定含む）
+              </h2>
+              <span className="text-[11px] text-muted-foreground">{ROTATION_FIXED_UNTIL} までは固定</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {speakerCounts.map(u => (
+                <div key={u.id} className="flex items-center justify-between border border-[#E0E4EF] rounded-lg px-3 py-2 bg-white">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1A1D23] truncate">{u.name}</p>
+                    <p className="text-[10px] text-muted-foreground">{GRADE_LABELS[u.grade] || u.grade}</p>
+                  </div>
+                  <span className={`shrink-0 ml-2 text-sm font-bold px-2.5 py-1 rounded-md border ${
+                    u.count === maxSpeakerCount && maxSpeakerCount > 0
+                      ? 'bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5]'
+                      : 'bg-[#F8F9FC] text-[#3D4252] border-[#E0E4EF]'
+                  }`}>{u.count}<span className="text-[10px] font-normal ml-0.5">回</span></span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Filters */}
         <div className="bg-white border border-[#E0E4EF] rounded-xl p-4 mb-5 flex flex-wrap items-center gap-3 shadow-[0_2px_8px_rgba(0,19,93,0.05)]">
