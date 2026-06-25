@@ -148,13 +148,14 @@ export type HealResult = { filled: number; reassigned: number };
  * cutoff「まで」の固定セッション・中止・棚卸し回は一切変更しない。
  * cutoff より後の予定セッションについて、各回を date 順に見ていき：
  *   - 発話者が「現役メンバー」かつ「直近 (ROTATION_NO_REPEAT_WINDOW - 1) 回に
- *     登壇していない」＝正しい割当なら、そのまま尊重する（変更しない）。
- *   - 発話者が null（未定）／非現役／直近窓と被る（なか4回違反）なら、
- *     直近窓の登壇者を除外したうえで発話回数が最少の現役メンバーへ割り当て直す。
+ *     登壇していない」かつ「その回に欠席でない」＝正しい割当なら尊重する（変更しない）。
+ *   - 発話者が null（未定）／非現役／直近窓と被る（なか4回違反）／その回に欠席なら、
+ *     直近窓の登壇者と当日欠席者を除外したうえで発話回数が最少の現役メンバーへ割当直す。
  *
  * これにより「未定が残らない」「連続する ROTATION_NO_REPEAT_WINDOW 回に同一発話者が
- * 出ない」を保証する。正しい割当は触らないため冪等で、毎朝Cron／ページ表示時に
- * 呼んでも余計なバタつきが起きない。
+ * 出ない」「欠席者を発話者にしない」を保証する。正しい割当は触らないため冪等で、
+ * 毎朝Cron／ページ表示時に呼んでも余計なバタつきが起きない。
+ * （登壇可能者が皆無の回のみ未定のまま残す＝最低人数割れで自動中止される想定。）
  *
  * 計画用の自動処理のため個別通知は発行しない（当日分の繰り上げは daily-finalize が担当）。
  */
@@ -174,6 +175,28 @@ export async function healFutureSpeakers(
     where: { status: { not: 'cancelled' } },
     orderBy: { date: 'asc' },
   });
+
+  // 付け替え対象（cutoff より後の予定セッション）の欠席者をまとめて取得する。
+  // 欠席 = AbsenceRequest あり、または Attendance が absent/left_early/unspoken。
+  const cutoffMs = cutoff;
+  const targetIds = sessions
+    .filter((s) => s.date.getTime() > cutoffMs && s.status === 'scheduled' && !isReviewSession(s.adminNote))
+    .map((s) => s.id);
+  const unavailableBySession = new Map<number, Set<string>>();
+  if (targetIds.length > 0) {
+    const [reqs, atts] = await Promise.all([
+      tx.absenceRequest.findMany({ where: { sessionId: { in: targetIds } }, select: { sessionId: true, userId: true } }),
+      tx.attendance.findMany({
+        where: { sessionId: { in: targetIds }, status: { in: ['absent', 'left_early', 'unspoken'] } },
+        select: { sessionId: true, userId: true },
+      }),
+    ]);
+    for (const r of [...reqs, ...atts]) {
+      const set = unavailableBySession.get(r.sessionId) ?? new Set<string>();
+      set.add(r.userId);
+      unavailableBySession.set(r.sessionId, set);
+    }
+  }
 
   // 全体の発話回数（過去＋割当済み未来）。割当の偏りを抑えるため全期間で集計。
   const counts = new Map<string, number>();
@@ -206,8 +229,10 @@ export async function healFutureSpeakers(
     }
 
     const blocked = new Set(recent.filter((id): id is string => id !== null));
+    const unavailable = unavailableBySession.get(s.id) ?? new Set<string>();
     const curr = s.speakerId;
-    const currValid = !!curr && memberIds.has(curr) && !blocked.has(curr);
+    const currValid =
+      !!curr && memberIds.has(curr) && !blocked.has(curr) && !unavailable.has(curr);
 
     // 正しい割当はそのまま尊重。
     if (currValid) {
@@ -215,9 +240,11 @@ export async function healFutureSpeakers(
       continue;
     }
 
-    // 直近窓の登壇者を除外（なか4回飛ばす）。枯渇時のみ全員から。
-    const pool = members.filter((m) => !blocked.has(m.id));
-    const candidates = pool.length > 0 ? pool : members;
+    // 当日欠席者は必ず除外。そのうえで直近窓の登壇者も除外（なか4回飛ばす）。
+    // 候補が枯渇したら窓制約だけ緩める（欠席除外は維持）。
+    const available = members.filter((m) => !unavailable.has(m.id));
+    const preferred = available.filter((m) => !blocked.has(m.id));
+    const candidates = preferred.length > 0 ? preferred : available;
 
     let best: string | null = null;
     let bestKey: [number, number] | null = null;
@@ -233,7 +260,13 @@ export async function healFutureSpeakers(
       }
     }
     if (!best) {
-      pushRecent(curr ?? null);
+      // 登壇可能者が皆無。欠席者を残さないため未定(null)にする（最低人数割れで自動中止される想定）。
+      if (curr) {
+        if (memberIds.has(curr)) counts.set(curr, Math.max(0, (counts.get(curr) ?? 0) - 1));
+        await tx.session.update({ where: { id: s.id }, data: { speakerId: null } });
+        reassigned++;
+      }
+      pushRecent(null);
       continue;
     }
 
