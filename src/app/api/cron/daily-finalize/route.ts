@@ -6,7 +6,7 @@ import {
   getUnavailableUserIds,
   enforceMinimumAttendance,
 } from '@/lib/absence-logic';
-import { fillEmptySpeakers } from '@/lib/rotation';
+import { healFutureSpeakers } from '@/lib/rotation';
 
 // Always run at request time (never prerender/cache this handler).
 export const dynamic = 'force-dynamic';
@@ -95,15 +95,15 @@ export async function GET(request: Request) {
       results.push(r);
     }
 
-    // 4) 未来の「未定（speaker=null）」セッションを自動補充（なか4回は飛ばす）。
-    //    欠席繰り上げ等で末尾が null になっても、ここで必ず埋める＝未定を残さない。
-    const filledEmptySpeakers = await fillEmptySpeakers(undefined, prisma);
+    // 4) 未来の発話輪番を自動で整える：未定(null)を補充し、なか4回違反（直近に
+    //    出た人との重複）も修復する。正しい割当は変更しない。
+    const heal = await healFutureSpeakers(undefined, prisma);
 
     return NextResponse.json({
       ok: true,
       date: jstDateStr,
       finalised: results.length,
-      filledEmptySpeakers,
+      speakerHeal: heal,
       results,
     });
   } catch (err) {
