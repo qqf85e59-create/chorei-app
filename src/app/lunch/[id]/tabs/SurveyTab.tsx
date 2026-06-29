@@ -23,20 +23,23 @@ export default function SurveyTab({ event, role, userId, activeStaff = [], isPar
   // 選定の有無に関わらず母集団は activeStaff で固定する。
   const targetMembers = activeStaff;
 
-  // Calculate deadline from title (e.g. "仙台Synergy Bites 2026 June").
-  // 締切は「開催月の10日」（上旬）。アンケート→日程登録→予約→開催 の時間軸を確保するため、
-  // 当月末ではなく上旬に締め切る。
-  let deadlineDate = null;
+  // 締切は「開催月（当月）の10日」（上旬）。アンケート→日程登録→予約→開催 の時間軸を
+  // 確保するため、当月末ではなく上旬に締め切る。
+  // 開催月は (1) 確定日 confirmedDate → (2) タイトルの "YYYY MonthName" → (3) 現在月 の順で判定。
+  // ※ タイトル形式が崩れていると前月10日にずれてしまう不具合があったため confirmedDate を優先する。
+  let deadlineDate: Date | null = null;
   let isDeadlinePassed = false;
   try {
-    const match = event.title?.match(/(\d{4})\s+([a-zA-Z]+)/i);
-    if (match) {
-      const year = parseInt(match[1]);
-      const monthStr = match[2];
-      const monthIndex = new Date(`${monthStr} 1, 2000`).getMonth();
-      if (!isNaN(monthIndex)) {
-        // 開催月の10日
-        deadlineDate = new Date(year, monthIndex, 10);
+    if (event.confirmedDate) {
+      const d = new Date(event.confirmedDate);
+      deadlineDate = new Date(d.getFullYear(), d.getMonth(), 10);
+    }
+    if (!deadlineDate) {
+      const match = event.title?.match(/(\d{4})\s+([a-zA-Z]+)/i);
+      if (match) {
+        const year = parseInt(match[1]);
+        const monthIndex = new Date(`${match[2]} 1, 2000`).getMonth();
+        if (!isNaN(monthIndex)) deadlineDate = new Date(year, monthIndex, 10);
       }
     }
     if (!deadlineDate) {

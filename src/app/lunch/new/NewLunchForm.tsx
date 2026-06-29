@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { lunchTitleForMonth } from "@/lib/lunch-title";
 
 export default function NewLunchForm() {
   const generateMonthOptions = () => {
@@ -9,10 +10,9 @@ export default function NewLunchForm() {
     const now = new Date();
     for (let i = 0; i < 3; i++) {
       const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
-      const englishMonth = d.toLocaleString('en-US', { month: 'long' });
       options.push({
         label: `${d.getFullYear()}年${d.getMonth() + 1}月度`,
-        title: `仙台Synergy Bites ${d.getFullYear()} ${englishMonth}`
+        title: lunchTitleForMonth(d.getFullYear(), d.getMonth())
       });
     }
     return options;

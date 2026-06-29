@@ -14,7 +14,6 @@ import {
   MessageSquare, FileText, Video, Utensils, ChevronRight
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT, getTodayStr } from '@/lib/constants';
-import { SpeechTimer } from '@/components/ui/timer';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 
 interface SessionData {
@@ -372,13 +371,6 @@ export default function DashboardPage() {
 
           {/* ── RIGHT ── */}
           <div className="space-y-5">
-
-            {/* Timer */}
-            {todaySession && (
-              <div className="animate-fade-in">
-                <SpeechTimer defaultSeconds={180} />
-              </div>
-            )}
 
             {/* Alerts */}
             {alerts.length > 0 && (

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from '@/lib/api-auth';
+import { canonicalLunchTitle } from "@/lib/lunch-title";
 
 
 export async function POST(req: Request) {
@@ -16,11 +17,9 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { title } = body;
-
-    if (!title) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
+    // タイトルは標準フォーマットへ自動正規化（第1回踏襲・自動統一）。
+    // フォームが渡す月をもとに正規化し、空なら当月(JST)で生成する。
+    const title = canonicalLunchTitle(body?.title);
 
     // 同月重複イベントの作成防止 (P9-1)
     const existingEvent = await prisma.lunchEvent.findFirst({

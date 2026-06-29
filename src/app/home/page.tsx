@@ -14,7 +14,6 @@ import {
   Video, AlertTriangle, ChevronRight, Bell, Users, TrendingUp, Utensils
 } from 'lucide-react';
 import { GRADE_LABELS, SESSION_STRUCTURE, formatDateUTC, getTodayStr } from '@/lib/constants';
-import { SpeechTimer } from '@/components/ui/timer';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 
 interface SessionData {
@@ -454,9 +453,6 @@ export default function HomePage() {
               </CardContent>
             </Card>
           )}
-
-          {/* Timer（常時表示） */}
-          <SpeechTimer defaultSeconds={180} />
 
           {/* ── 次回の予定 ── */}
           {upcomingSessions[0] && (() => {
