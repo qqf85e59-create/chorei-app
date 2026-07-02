@@ -8,15 +8,67 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ============================================
+// ENUMS（型安全・typo防止）
+// grade / ScheduleResponse.response / SurveyResponse.budget は
+// 記号や可変値を含むため文字列のまま据え置く。
+// ============================================
+enum Role {
+  member
+  admin
+}
+
+// choreiStatus / lunchStatus 共用（有効/無効）
+enum ActivityStatus {
+  active
+  inactive
+}
+
+enum LunchRole {
+  participant
+  organizer
+}
+
+enum SessionStatus {
+  scheduled
+  completed
+  cancelled
+}
+
+enum AttendanceStatus {
+  present
+  absent
+  unspoken
+  left_early
+}
+
+enum AbsenceType {
+  absent
+  unspoken
+  leave_early
+}
+
+enum LunchEventStatus {
+  planning
+  scheduled
+  completed
+  cancelled
+}
+
+enum SettlementStatus {
+  unpaid
+  paid
+}
+
 model User {
   id        String   @id @default(cuid())
   name      String
   grade     String
   email     String?  @unique
   password  String
-  role      String   @default("member")
-  lunchStatus String @default("active")
-  choreiStatus String @default("active")
+  role      Role     @default(member)
+  lunchStatus ActivityStatus @default(active)
+  choreiStatus ActivityStatus @default(active)
   createdAt DateTime @default(now())
   deletedAt DateTime?
   
@@ -31,7 +83,7 @@ model User {
   @@index([deletedAt])
 
   // Lunch feature relations
-  lunchRole      String  @default("participant")
+  lunchRole      LunchRole @default(participant)
   employeeNumber String? @unique
   kana           String?
   jobCode        String?
@@ -82,7 +134,7 @@ model Session {
   speakerId   String?
   startTime   String    @default("09:00")
   endTime     String    @default("09:10")
-  status      String    @default("scheduled")
+  status      SessionStatus @default(scheduled)
   adminNote   String?
   roundNumber Int       @default(1)
   commentatorsUpdatedAt DateTime?
@@ -107,7 +159,7 @@ model Attendance {
   id         Int       @id @default(autoincrement())
   sessionId  Int
   userId     String
-  status     String    @default("present")
+  status     AttendanceStatus @default(present)
   reportedAt DateTime?
   adminNote  String?
 
@@ -122,7 +174,7 @@ model AbsenceRequest {
   id          Int      @id @default(autoincrement())
   userId      String
   sessionId   Int
-  type        String
+  type        AbsenceType
   requestedAt DateTime @default(now())
   note        String?
   originalSpeaker          Boolean  @default(false)
@@ -201,7 +253,7 @@ model LunchEvent {
   title           String        // 例："2026年6月ランチ会"
   organizerId     String
   organizer       User          @relation("LunchOrganizer", fields: [organizerId], references: [id])
-  status          String        // "planning" | "scheduled" | "completed" | "cancelled"
+  status          LunchEventStatus // planning | scheduled | completed | cancelled
   confirmedDate   DateTime?
   restaurantId    Int?
   restaurant      Restaurant?   @relation(fields: [restaurantId], references: [id])
@@ -322,7 +374,7 @@ model Settlement {
   payerId     String
   totalAmount Int
   perPerson   Int
-  status      String    // "unpaid" | "paid"
+  status      SettlementStatus // unpaid | paid
   note        String?
   createdAt   DateTime  @default(now())
 

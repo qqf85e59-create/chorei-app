@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { AttendanceStatus } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 import { adjustForAbsence, canSelfCancel, reflowSpeakers } from '@/lib/absence-logic';
@@ -174,7 +175,8 @@ export async function DELETE(request: Request) {
       );
     }
 
-    const restoreStatus = req.previousAttendanceStatus || 'present';
+    // previousAttendanceStatus は String? のまま保持しているため enum 型へ寄せる
+    const restoreStatus = (req.previousAttendanceStatus || 'present') as AttendanceStatus;
     let cascadeReversed = false;
 
     // Neon serverless 互換: インタラクティブtrxを避け逐次実行する。

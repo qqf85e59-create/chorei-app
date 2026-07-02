@@ -340,7 +340,7 @@ export async function generateRotation(
     holidayDates
   );
 
-  const sessions = [];
+  const sessions: Prisma.SessionUncheckedCreateInput[] = [];
 
   for (let i = 0; i < sessionDates.length; i++) {
     const date = sessionDates[i];
