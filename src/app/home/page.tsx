@@ -43,6 +43,7 @@ interface NotificationItem {
   message: string;
   createdAt: string;
   readAt: string | null;
+  linkUrl: string | null;
 }
 
 interface PhaseInfo {
@@ -89,6 +90,19 @@ export default function HomePage() {
   const [phaseInfo, setPhaseInfo] = useState<PhaseInfo[]>([]);
   const [activeLunches, setActiveLunches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // ── 通知クリック: 既読化してリンク先へ遷移 ──────────────
+  const handleNotificationClick = useCallback(async (n: NotificationItem) => {
+    if (!n.readAt) {
+      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, readAt: new Date().toISOString() } : x));
+      fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'markRead', id: n.id }),
+      }).catch(() => {});
+    }
+    if (n.linkUrl) router.push(n.linkUrl);
+  }, [router]);
 
   // ── コメント順を取得（Phase 1 専用） ──────────────
   const fetchCommentOrder = useCallback(async (sessionId: number) => {
@@ -568,14 +582,27 @@ export default function HomePage() {
                 </p>
               </div>
               <div className="p-4 flex flex-col gap-2">
-                {notifications.slice(0, 5).map(n => (
-                  <div key={n.id} className={`flex items-start justify-between rounded-lg border px-4 py-3 ${
-                    !n.readAt ? 'border-[#BDD9F5] bg-[#E8F2FB]' : 'border-[#E0E4EF] bg-white'
-                  }`}>
-                    <p className="text-sm text-[#1A1D23]">{n.message}</p>
-                    <span className="text-xs text-muted-foreground whitespace-nowrap ml-3">{formatTimeAgo(n.createdAt)}</span>
-                  </div>
-                ))}
+                {notifications.slice(0, 5).map(n => {
+                  const clickable = !!n.linkUrl;
+                  return (
+                    <div
+                      key={n.id}
+                      onClick={clickable ? () => handleNotificationClick(n) : undefined}
+                      role={clickable ? 'button' : undefined}
+                      tabIndex={clickable ? 0 : undefined}
+                      onKeyDown={clickable ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleNotificationClick(n); } } : undefined}
+                      className={`flex items-start justify-between rounded-lg border px-4 py-3 transition-colors ${
+                        !n.readAt ? 'border-[#BDD9F5] bg-[#E8F2FB]' : 'border-[#E0E4EF] bg-white'
+                      } ${clickable ? 'cursor-pointer hover:border-[#0070CC] hover:bg-[#DCEBFB]' : ''}`}
+                    >
+                      <p className="text-sm text-[#1A1D23]">
+                        {n.message}
+                        {clickable && <ChevronRight className="inline-block h-3.5 w-3.5 ml-1 text-[#0070CC] align-text-bottom" />}
+                      </p>
+                      <span className="text-xs text-muted-foreground whitespace-nowrap ml-3">{formatTimeAgo(n.createdAt)}</span>
+                    </div>
+                  );
+                })}
               </div>
             </Card>
           )}

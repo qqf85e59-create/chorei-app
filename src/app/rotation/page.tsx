@@ -37,7 +37,7 @@ export default function RotationPage() {
   const [generating, setGenerating] = useState(false);
   const [rebalancing, setRebalancing] = useState(false);
 
-  const isAdmin = (session?.user as { role?: string })?.role === 'admin';
+  const isAdmin = session?.user?.role === 'admin';
 
   // admin が輪番計画を開いた時点で「未定」を自動補充（なか4回は飛ばす）。
   // isAdmin が false→true になった時にも再実行され、未定が残らないようにする。

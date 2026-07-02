@@ -46,7 +46,8 @@ export type RebalanceResult = {
  */
 export async function rebalanceFutureSpeakers(
   cutoffStr: string = ROTATION_FIXED_UNTIL,
-  tx: TxClient = prisma
+  tx: TxClient = prisma,
+  rng: () => number = Math.random
 ): Promise<RebalanceResult> {
   // セッション date は UTC 0:00 で保存。cutoff 当日いっぱい（その日まで）を固定とする。
   const cutoff = new Date(`${cutoffStr}T23:59:59.999Z`).getTime();
@@ -85,7 +86,7 @@ export async function rebalanceFutureSpeakers(
 
   // 同点時の並びを散らすためのランダムキー（メンバーごとに固定）。
   const rnd = new Map<string, number>();
-  for (const m of members) rnd.set(m.id, Math.random());
+  for (const m of members) rnd.set(m.id, rng());
 
   // 再調整対象：cutoff より後の予定セッション（棚卸し回は除く）。
   const future = sessions.filter(
@@ -161,7 +162,8 @@ export type HealResult = { filled: number; reassigned: number };
  */
 export async function healFutureSpeakers(
   cutoffStr: string = ROTATION_FIXED_UNTIL,
-  tx: TxClient = prisma
+  tx: TxClient = prisma,
+  rng: () => number = Math.random
 ): Promise<HealResult> {
   const cutoff = new Date(`${cutoffStr}T23:59:59.999Z`).getTime();
 
@@ -209,7 +211,7 @@ export async function healFutureSpeakers(
   }
 
   const rnd = new Map<string, number>();
-  for (const m of members) rnd.set(m.id, Math.random());
+  for (const m of members) rnd.set(m.id, rng());
 
   const cooldown = Math.max(0, ROTATION_NO_REPEAT_WINDOW - 1);
   const recent: (string | null)[] = [];
@@ -291,7 +293,8 @@ export async function healFutureSpeakers(
 export async function generateRotation(
   phaseId: number,
   roundNumber: number,
-  startDate: Date
+  startDate: Date,
+  rng: () => number = Math.random
 ) {
   // Get all members who are active for morning assembly
   const users = await prisma.user.findMany({
@@ -319,7 +322,7 @@ export async function generateRotation(
     // Round 2, 3: Random order (Fisher-Yates)
     sortedUsers = [...users];
     for (let i = sortedUsers.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(rng() * (i + 1));
       [sortedUsers[i], sortedUsers[j]] = [sortedUsers[j], sortedUsers[i]];
     }
   }

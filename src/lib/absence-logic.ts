@@ -125,6 +125,7 @@ export async function reflowSpeakers(
           sessionId: s.id,
           type: 'speaker_change',
           message: `${formatDateJP(s.date)} の発話担当になりました（欠席による繰り上げ）`,
+          linkUrl: '/home',
         },
       });
     }

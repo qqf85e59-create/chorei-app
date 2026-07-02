@@ -7,6 +7,7 @@ import {
   enforceMinimumAttendance,
 } from '@/lib/absence-logic';
 import { healFutureSpeakers } from '@/lib/rotation';
+import { notifyChat } from '@/lib/notify';
 
 // Always run at request time (never prerender/cache this handler).
 export const dynamic = 'force-dynamic';
@@ -98,6 +99,36 @@ export async function GET(request: Request) {
     // 4) 未来の発話輪番を自動で整える：未定(null)を補充し、なか4回違反（直近に
     //    出た人との重複）も修復する。正しい割当は変更しない。
     const heal = await healFutureSpeakers(undefined, prisma);
+
+    // 5) 本日のスピーカー＆コメンテーターをチャットへ投稿（NOTIFY_PROVIDER 未設定なら no-op）。
+    //    通知失敗が Cron を壊さないよう notifyChat は例外を握りつぶす。
+    const finalised = await prisma.session.findMany({
+      where: { date: { gte: dayStart, lt: dayEnd }, status: 'scheduled' },
+      include: {
+        phase: { select: { phaseNumber: true } },
+        speaker: { select: { name: true } },
+        commentators: { select: { name: true } },
+      },
+      orderBy: { date: 'asc' },
+    });
+    if (finalised.length > 0) {
+      const base = process.env.NEXTAUTH_URL
+        || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
+      const lines = finalised.map((s) => {
+        const speaker = s.speaker?.name ?? '未定（延期）';
+        const respondents =
+          s.phase.phaseNumber === 1
+            ? 'コメント順で参加者全員'
+            : s.commentators.length > 0
+              ? s.commentators.map((c) => c.name).join('、')
+              : '未定';
+        return `・発話者: ${speaker} / 応答: ${respondents}`;
+      });
+      await notifyChat({
+        text: `【本日の朝礼】${jstDateStr}\n${lines.join('\n')}`,
+        linkUrl: base ? `${base}/home` : undefined,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

@@ -47,7 +47,7 @@ export default async function LunchManagementPage({ params }: { params: Promise<
   if (!session) {
     redirect("/login");
   }
-  const { role, lunchStatus } = session.user as any;
+  const { role, lunchStatus } = session.user;
 
   if (role !== "admin" && lunchStatus !== "active") {
     redirect("/home");

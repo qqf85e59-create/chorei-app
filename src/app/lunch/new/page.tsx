@@ -12,7 +12,7 @@ export default async function NewLunchPage() {
   if (!session) {
     redirect("/login");
   }
-  const { role, lunchRole } = session.user as { role?: string; lunchRole?: string };
+  const { role, lunchRole } = session.user;
   if (role !== "admin" && lunchRole !== "organizer") {
     redirect("/history");
   }

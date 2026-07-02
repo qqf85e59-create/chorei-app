@@ -11,7 +11,7 @@ export default async function RestaurantsPage() {
     redirect("/login");
   }
 
-  const { role, lunchStatus } = session.user as any;
+  const { role, lunchStatus } = session.user;
   if (role !== "admin" && lunchStatus !== "active") {
     redirect("/home");
   }

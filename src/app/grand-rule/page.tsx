@@ -22,7 +22,7 @@ export default function GrandRulePage() {
   function handleConfirm() {
     localStorage.setItem('grandRuleConfirmed', 'true');
     setConfirmed(true);
-    const role = (session?.user as { role?: string })?.role;
+    const role = session?.user?.role;
     router.push(role === 'admin' ? '/dashboard' : '/home');
   }
 

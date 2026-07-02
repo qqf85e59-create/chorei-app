@@ -73,7 +73,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (status === 'loading') return;
     if (status === 'unauthenticated') { router.push('/login'); return; }
-    if ((session?.user as { role?: string })?.role !== 'admin') { router.push('/home'); return; }
+    if (session?.user?.role !== 'admin') { router.push('/home'); return; }
     fetchData();
   }, [status, session, router]);
 

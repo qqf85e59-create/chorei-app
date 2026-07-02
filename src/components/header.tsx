@@ -36,8 +36,8 @@ export function Header() {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  const userRole = (session?.user as { role?: string })?.role || 'member';
-  const userLunchStatus = (session?.user as any)?.lunchStatus || 'inactive'; // fallback to inactive if missing
+  const userRole = session?.user?.role || 'member';
+  const userLunchStatus = session?.user?.lunchStatus || 'inactive'; // fallback to inactive if missing
   const isAdmin = userRole === 'admin';
   const filteredItems = navItems.filter(item => 
     isAdmin || (!item.adminOnly && (!item.lunchOnly || userLunchStatus === 'active'))
