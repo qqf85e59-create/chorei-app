@@ -7,7 +7,7 @@ import TopicTab from "./tabs/TopicTab";
 import SurveyTab from "./tabs/SurveyTab";
 import RestaurantTab from "./tabs/RestaurantTab";
 import ScheduleTab from "./tabs/ScheduleTab";
-// import SettlementTab from "./tabs/SettlementTab";
+import SettlementTab from "./tabs/SettlementTab";
 // import RecapTab from "./tabs/RecapTab";
 
 type EventWithDetails = LunchEvent & {
@@ -33,7 +33,7 @@ export default function LunchManagementTabs({ event, activeStaff, previousPartic
   const searchParams = useSearchParams();
   const initialTab = searchParams.get("tab") as any;
   const isParticipant = event.participants.some((p) => p.userId === userId);
-  const [activeTab, setActiveTab] = useState<"topic" | "selection" | "survey" | "restaurant" | "schedule">(
+  const [activeTab, setActiveTab] = useState<"topic" | "selection" | "survey" | "restaurant" | "schedule" | "settlement">(
     initialTab || (role === "admin" ? "selection" : "schedule")
   );
 
@@ -43,6 +43,7 @@ export default function LunchManagementTabs({ event, activeStaff, previousPartic
     { id: "schedule", label: "日程調整", adminOnly: false },
     { id: "survey", label: "アンケート", adminOnly: false },
     { id: "restaurant", label: "行先・予約", adminOnly: true },
+    { id: "settlement", label: "精算", adminOnly: true },
   ] as const;
 
   const visibleTabs = tabs.filter(t => role === "admin" || !t.adminOnly);
@@ -79,6 +80,7 @@ export default function LunchManagementTabs({ event, activeStaff, previousPartic
         {activeTab === "schedule" && <ScheduleTab event={event} role={role} userId={userId} isParticipant={isParticipant} />}
         {activeTab === "survey" && <SurveyTab event={event} role={role} userId={userId} isParticipant={isParticipant} activeStaff={activeStaff} />}
         {activeTab === "restaurant" && role === "admin" && <RestaurantTab event={event} restaurants={restaurants} />}
+        {activeTab === "settlement" && role === "admin" && <SettlementTab event={event} />}
       </div>
     </div>
   );

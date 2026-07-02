@@ -106,7 +106,17 @@ export default async function LunchManagementPage({ params }: { params: Promise<
           <h2 className="text-2xl font-bold text-[var(--color-primary)] accent-bar pl-3">
             ランチ会管理: {event.title}
           </h2>
-          <DeleteEventButton eventId={event.id} eventTitle={event.title} />
+          <div className="flex items-center gap-3">
+            {event.confirmedDate && (
+              <a
+                href={`/api/lunch/${event.id}/ics`}
+                className="text-sm px-3 py-1.5 border border-[var(--color-primary)] text-[var(--color-primary)] rounded hover:bg-[var(--color-panel)] transition-colors whitespace-nowrap"
+              >
+                カレンダーに追加(.ics)
+              </a>
+            )}
+            <DeleteEventButton eventId={event.id} eventTitle={event.title} />
+          </div>
         </div>
         
         {/* Progress Indicator */}

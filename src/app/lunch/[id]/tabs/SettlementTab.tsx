@@ -24,7 +24,30 @@ export default function SettlementTab({ event }: Props) {
   const [success, setSuccess] = useState("");
 
   const participants = event.participants;
-  const participantCount = participants.length;
+  // 実参加(出欠)状態。初期値はDBの attended（未設定は参加=true 扱い）。
+  const [attendance, setAttendance] = useState<Record<string, boolean>>(
+    () => Object.fromEntries(participants.map(p => [p.userId, p.attended ?? true]))
+  );
+  const attendedParticipants = participants.filter(p => attendance[p.userId]);
+  const attendedCount = attendedParticipants.length;
+
+  const toggleAttendance = async (userId: string, attended: boolean) => {
+    setAttendance(prev => ({ ...prev, [userId]: attended }));
+    try {
+      const res = await fetch(`/api/lunch/${event.id}/attendance`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId, attended }),
+      });
+      if (!res.ok) throw new Error();
+      // 欠席にした人が支払者に選ばれていたら解除
+      if (!attended && payerId === userId) setPayerId("");
+    } catch {
+      // 失敗したらロールバック
+      setAttendance(prev => ({ ...prev, [userId]: !attended }));
+      setError("出欠の更新に失敗しました");
+    }
+  };
 
   useEffect(() => {
     fetchSettlement();
@@ -94,10 +117,10 @@ export default function SettlementTab({ event }: Props) {
     return <div className="p-4 text-center text-gray-500">読み込み中...</div>;
   }
 
-  // 自動計算
+  // 自動計算（実参加人数で割り勘）
   const parsedTotal = parseInt(totalAmount, 10);
-  const perPerson = !isNaN(parsedTotal) && participantCount > 0 
-    ? Math.ceil(parsedTotal / participantCount) 
+  const perPerson = !isNaN(parsedTotal) && attendedCount > 0
+    ? Math.ceil(parsedTotal / attendedCount)
     : 0;
 
   return (
@@ -105,12 +128,42 @@ export default function SettlementTab({ event }: Props) {
       <div className="bg-[var(--color-panel)] p-4 rounded-lg border border-gray-100 mb-6">
         <h3 className="text-lg font-bold text-[var(--color-primary)] mb-2">精算設定</h3>
         <p className="text-sm text-gray-600">
-          立て替えた人と総額を入力して、参加人数（{participantCount}人）で割り勘の金額を計算します。
+          立て替えた人と総額を入力して、実参加人数（{attendedCount}人）で割り勘の金額を計算します。
         </p>
       </div>
 
       {error && <div className="p-3 bg-red-50 text-red-600 rounded-md text-sm">{error}</div>}
       {success && <div className="p-3 bg-green-50 text-green-600 rounded-md text-sm">{success}</div>}
+
+      {/* 実参加(出欠)チェック — 当日欠席(no-show)を外すと割り勘の分母から除外される */}
+      <div className="space-y-2">
+        <label className="block text-sm font-medium text-gray-700">
+          実参加チェック（当日来た人にチェック）
+        </label>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {participants.map(p => (
+            <label
+              key={p.userId}
+              className={`flex items-center gap-2 p-2 rounded-md border cursor-pointer transition-colors ${
+                attendance[p.userId]
+                  ? "border-[var(--color-primary)] bg-[var(--color-panel)]"
+                  : "border-gray-200 bg-gray-50 opacity-60"
+              }`}
+            >
+              <input
+                type="checkbox"
+                checked={!!attendance[p.userId]}
+                onChange={(e) => toggleAttendance(p.userId, e.target.checked)}
+                className="text-[var(--color-primary)] focus:ring-[var(--color-primary)]"
+              />
+              <span className="text-sm truncate">{p.user.name}</span>
+            </label>
+          ))}
+        </div>
+        <p className="text-xs text-gray-500">
+          登録 {participants.length}人 / 実参加 {attendedCount}人
+        </p>
+      </div>
 
       <form onSubmit={handleSave} className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -136,7 +189,7 @@ export default function SettlementTab({ event }: Props) {
               onChange={(e) => setPayerId(e.target.value)}
             >
               <option value="">選択してください</option>
-              {participants.map(p => (
+              {attendedParticipants.map(p => (
                 <option key={p.user.id} value={p.user.id}>{p.user.name}</option>
               ))}
             </select>

@@ -229,7 +229,8 @@ model Participation {
   userId      String
   user        User      @relation(fields: [userId], references: [id])
   isOrganizer Boolean   @default(false)
-  
+  attended    Boolean   @default(true)   // 実参加フラグ。false=当日欠席(no-show)。精算はattended=trueのみで割り勘。
+
   @@unique([eventId, userId])
   @@index([userId])
 }

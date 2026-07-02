@@ -32,16 +32,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // 参加人数を取得
+    // 実参加人数を取得（当日欠席 attended=false は割り勘から除外）
     const participants = await prisma.participation.count({
-      where: { eventId }
+      where: { eventId, attended: true }
     });
 
     if (participants === 0) {
-      return NextResponse.json({ error: "No participants found" }, { status: 400 });
+      return NextResponse.json({ error: "実参加者がいません（出欠を確認してください）" }, { status: 400 });
     }
 
-    // 割り勘の計算（端数切り上げ）
+    // 割り勘の計算（端数切り上げ・実参加人数で除算）
     const perPerson = Math.ceil(totalAmount / participants);
 
     // 既存の精算情報があれば更新、なければ作成
