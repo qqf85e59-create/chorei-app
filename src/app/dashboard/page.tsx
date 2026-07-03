@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT, getTodayStr } from '@/lib/constants';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
+import { DayParticipantsCard } from '@/components/day-participants-card';
 
 interface SessionData {
   id: number;
@@ -28,20 +29,6 @@ interface SessionData {
   phase: { id: number; name: string; phaseNumber: number };
   commentators?: { id: string; name: string; grade: string }[];
 }
-
-interface CommentOrderItem {
-  id: string;
-  name: string;
-  grade: string;
-  status: 'present' | 'absent' | 'unspoken' | 'leave_early';
-  commentPosition: number | null;
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  absent:      '欠席',
-  unspoken:    '聴講のみ',
-  leave_early: '途中退出',
-};
 
 interface AttendanceData {
   id: number;
@@ -63,7 +50,6 @@ export default function DashboardPage() {
   const router = useRouter();
   const [todaySession, setTodaySession] = useState<SessionData | null>(null);
   const [attendance, setAttendance] = useState<AttendanceData[]>([]);
-  const [commentOrder, setCommentOrder] = useState<CommentOrderItem[]>([]);
   const [alerts, setAlerts] = useState<AlertData[]>([]);
   const [activeLunches, setActiveLunches] = useState<any[]>([]);
   const [meetingUrl, setMeetingUrl] = useState<string>('');
@@ -92,14 +78,6 @@ export default function DashboardPage() {
         setTodaySession(sessions[0]);
         const attRes = await fetch(`/api/attendance?sessionId=${sessions[0].id}`);
         setAttendance(await attRes.json());
-        // Phase 1 はコメント順を取得（発話者以外全員がセッションIDシードのランダム順で発言）
-        if (sessions[0].phase?.phaseNumber === 1) {
-          const coRes = await fetch(`/api/sessions/comment-order?sessionId=${sessions[0].id}`);
-          if (coRes.ok) {
-            const co = await coRes.json();
-            setCommentOrder(co.commentOrder || []);
-          }
-        }
       }
       setAlerts(await alertsRes.json());
       if (lunchesRes.ok) setActiveLunches(await lunchesRes.json());
@@ -241,7 +219,7 @@ export default function DashboardPage() {
                     {/* Commentator lottery — Phase 2/3 のみ。
                         Phase1 は参加者全員がコメント順で発言するため応答者（コメンテーター）の概念がなく、
                         抽選APIは Phase1 を 400 で拒否する。ボタンを出すと必ずエラーになるため出し分ける。 */}
-                    {todaySession.phase.phaseNumber !== 1 ? (
+                    {todaySession.phase.phaseNumber !== 1 && (
                     <div>
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium flex items-center gap-1.5">
@@ -272,42 +250,6 @@ export default function DashboardPage() {
                         </div>
                       )}
                     </div>
-                    ) : (
-                      <div>
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium flex items-center gap-1.5 mb-3">
-                          <MessageSquare className="h-3 w-3" />コメント順（発話者以外全員）
-                        </p>
-                        {commentOrder.length > 0 ? (
-                          <div className="flex flex-col gap-2">
-                            {commentOrder.map(c => {
-                              const isInactive = c.status === 'absent' || c.status === 'unspoken';
-                              return (
-                                <div key={c.id} className={`flex items-center justify-between p-3 rounded-lg bg-[#F8F9FC] border border-[#E0E4EF] transition-opacity ${isInactive ? 'opacity-40' : ''}`}>
-                                  <div className="flex items-center gap-3">
-                                    {c.commentPosition !== null ? (
-                                      <span className="w-5 h-5 rounded-full bg-[#00135D] flex items-center justify-center text-[10px] font-bold text-white shrink-0">{c.commentPosition}</span>
-                                    ) : (
-                                      <span className="w-5 h-5 rounded-full bg-[#E0E4EF] flex items-center justify-center text-[10px] font-bold text-muted-foreground shrink-0">–</span>
-                                    )}
-                                    <span className="font-semibold text-sm text-[#1A1D23]">{c.name}</span>
-                                    {c.status !== 'present' && (
-                                      <Badge className={`text-[10px] py-0 px-1.5 ${c.status === 'absent' ? 'bg-[#FEF2F2] text-[#C0392B] border border-[#FCCACA]' : 'bg-white text-muted-foreground border border-[#E0E4EF]'}`}>
-                                        {STATUS_LABEL[c.status] ?? c.status}
-                                      </Badge>
-                                    )}
-                                  </div>
-                                  <span className="text-xs text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <div className="rounded-lg bg-[#F8F9FC] border border-[#E0E4EF] p-3 text-xs text-muted-foreground">
-                            第1フェーズは参加者全員が順番にコメントします。コメント順は確定後に表示されます。
-                          </div>
-                        )}
-                        <p className="text-[10px] text-muted-foreground mt-3">※ 欠席・聴講のみの方は自動的にスキップされます。</p>
-                      </div>
                     )}
                   </>
                 ) : (
@@ -318,6 +260,11 @@ export default function DashboardPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* 本日の参加者（全フェーズ共通・役割つき） */}
+            {todaySession && (
+              <DayParticipantsCard sessionId={todaySession.id} currentUserId={(session?.user as { id?: string })?.id} />
+            )}
 
             {/* Next commentators */}
             <NextCommentatorsCard />

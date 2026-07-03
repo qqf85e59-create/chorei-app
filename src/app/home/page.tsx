@@ -6,15 +6,15 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
   CalendarDays, BookOpen, Mic, Clock, FileText,
   UserMinus, History, MessageSquare,
   Video, AlertTriangle, ChevronRight, Bell, Users, TrendingUp, Utensils
 } from 'lucide-react';
-import { GRADE_LABELS, SESSION_STRUCTURE, formatDateUTC, getTodayStr } from '@/lib/constants';
+import { SESSION_STRUCTURE, formatDateUTC, getTodayStr } from '@/lib/constants';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
+import { DayParticipantsCard } from '@/components/day-participants-card';
 
 interface SessionData {
   id: number;
@@ -70,12 +70,6 @@ function formatTimeAgo(dateStr: string) {
   return `${diffDay}日前`;
 }
 
-const STATUS_LABEL: Record<string, string> = {
-  absent:      '欠席',
-  unspoken:    '聴講のみ',
-  leave_early: '途中退出',
-};
-
 export default function HomePage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -84,7 +78,6 @@ export default function HomePage() {
   const [pastSpeaking, setPastSpeaking] = useState<SessionData[]>([]);
   const [meetingUrl, setMeetingUrl] = useState<string>('');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [commentOrder, setCommentOrder] = useState<CommentOrderItem[]>([]);
   const [upcomingSessions, setUpcomingSessions] = useState<SessionData[]>([]);
   const [upcomingCommentOrders, setUpcomingCommentOrders] = useState<Record<number, CommentOrderItem[]>>({});
   const [phaseInfo, setPhaseInfo] = useState<PhaseInfo[]>([]);
@@ -104,17 +97,6 @@ export default function HomePage() {
     if (n.linkUrl) router.push(n.linkUrl);
   }, [router]);
 
-  // ── コメント順を取得（Phase 1 専用） ──────────────
-  const fetchCommentOrder = useCallback(async (sessionId: number) => {
-    try {
-      const res = await fetch(`/api/sessions/comment-order?sessionId=${sessionId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCommentOrder(data.commentOrder || []);
-      }
-    } catch (e) { console.error(e); }
-  }, []);
-
   useEffect(() => {
     if (status === 'loading') return;
     if (status === 'unauthenticated') { router.push('/login'); return; }
@@ -126,14 +108,6 @@ export default function HomePage() {
     return () => clearInterval(pollTimer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, session, router]);
-
-  // Phase 1 のセッションが確定したらコメント順を取得 + 30s ポーリング
-  useEffect(() => {
-    if (!todaySession || todaySession.phase.phaseNumber !== 1) return;
-    fetchCommentOrder(todaySession.id);
-    const timer = setInterval(() => fetchCommentOrder(todaySession.id), 30_000);
-    return () => clearInterval(timer);
-  }, [todaySession, fetchCommentOrder]);
 
   async function fetchData() {
     try {
@@ -197,9 +171,6 @@ export default function HomePage() {
       </div>
     </div>
   );
-
-  const isPhase1 = todaySession?.phase.phaseNumber === 1;
-  const isPhase2Plus = todaySession && todaySession.phase.phaseNumber >= 2;
 
   // フェーズ進行情報: 進行中フェーズ、なければ直近の予定フェーズ
   const todayStr = getTodayStr();
@@ -400,72 +371,9 @@ export default function HomePage() {
             </Card>
           )}
 
-          {/* ── Phase 1: コメント順（フルwidth） ── */}
-          {isPhase1 && commentOrder.length > 0 && (
-            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#E0E4EF]">
-                <p className="text-xs font-bold text-[#00135D] flex items-center gap-1.5">
-                  <MessageSquare className="h-3.5 w-3.5 text-[#0070CC]" />コメント順（発話者以外全員）
-                </p>
-              </div>
-              <CardContent className="p-4">
-                <div className="flex flex-col gap-2">
-                  {commentOrder.map(c => {
-                    const isInactive = c.status === 'absent' || c.status === 'unspoken';
-                    const isMe = c.id === session?.user?.id;
-                    return (
-                      <div key={c.id} className={`flex items-center gap-2.5 transition-opacity ${isInactive ? 'opacity-40' : ''}`}>
-                        {c.commentPosition !== null ? (
-                          <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${isMe ? 'bg-[#0070CC] text-white' : 'bg-[#00135D] text-white'}`}>
-                            {c.commentPosition}
-                          </span>
-                        ) : (
-                          <span className="w-6 h-6 rounded-full bg-[#E0E4EF] flex items-center justify-center shrink-0">
-                            <span className="text-[10px] text-muted-foreground font-bold">–</span>
-                          </span>
-                        )}
-                        <span className={`text-sm font-semibold ${isMe ? 'text-[#0070CC]' : 'text-[#1A1D23]'}`}>{c.name}</span>
-                        <span className="text-[10px] text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</span>
-                        {isMe && <Badge className="bg-[#0070CC] text-white text-[10px] py-0 px-1.5">あなた</Badge>}
-                        {c.status !== 'present' && (
-                          <Badge className={`text-[10px] py-0 px-1.5 ${c.status === 'absent' ? 'bg-[#FEF2F2] text-[#C0392B] border border-[#FCCACA]' : 'bg-[#F8F9FC] text-muted-foreground border border-[#E0E4EF]'}`}>
-                            {STATUS_LABEL[c.status] ?? c.status}
-                          </Badge>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-                <p className="text-[10px] text-muted-foreground mt-3">※ 欠席・聴講のみの方は自動的にスキップされます。30秒ごとに自動更新。</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* ── Phase 2+: 本日の応答者（フルwidth） ── */}
-          {isPhase2Plus && todaySession?.commentators && todaySession.commentators.length > 0 && (
-            <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[#E0E4EF]">
-                <p className="text-xs font-bold text-[#00135D] flex items-center gap-1.5">
-                  <Users className="h-3.5 w-3.5 text-[#0070CC]" />本日の応答者
-                </p>
-              </div>
-              <CardContent className="p-4">
-                <div className="flex flex-wrap gap-4">
-                  {todaySession.commentators.map((c, i) => (
-                    <div key={c.id} className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-full bg-[#00135D] flex items-center justify-center text-[11px] font-bold text-white shrink-0">{i+1}</span>
-                      <div>
-                        <p className="text-sm font-semibold text-[#1A1D23] leading-tight">{c.name}</p>
-                        <p className="text-[10px] text-muted-foreground">{GRADE_LABELS[c.grade] || c.grade}</p>
-                      </div>
-                      {c.id === session?.user?.id && (
-                        <Badge className="bg-[#0070CC] text-white text-[10px] py-0 px-1.5">あなた</Badge>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+          {/* ── 本日の参加者（全フェーズ共通・役割つき） ── */}
+          {todaySession && (
+            <DayParticipantsCard sessionId={todaySession.id} currentUserId={session?.user?.id} />
           )}
 
           {/* ── 次回の予定 ── */}
