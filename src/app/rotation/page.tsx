@@ -12,7 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { RotateCcw, Pencil, Wand2, Filter, Scale, Mic } from 'lucide-react';
-import { DAY_LABELS, GRADE_LABELS, ROTATION_FIXED_UNTIL } from '@/lib/constants';
+import { DAY_LABELS, GRADE_LABELS, ROTATION_FIXED_UNTIL, getTodayStr } from '@/lib/constants';
 
 interface SessionData {
   id: number; date: string; startTime: string; endTime: string;
@@ -32,6 +32,7 @@ export default function RotationPage() {
   const [loading, setLoading] = useState(true);
   const [filterSpeaker, setFilterSpeaker] = useState('all');
   const [filterRound, setFilterRound] = useState('all');
+  const [filterPeriod, setFilterPeriod] = useState('upcoming'); // 既定は未経過分のみ
   const [editSession, setEditSession] = useState<SessionData | null>(null);
   const [editForm, setEditForm] = useState({ speakerId:'', topicId:'', startTime:'', endTime:'', status:'', adminNote:'' });
   const [generating, setGenerating] = useState(false);
@@ -98,7 +99,10 @@ export default function RotationPage() {
   })();
   const maxSpeakerCount = speakerCounts.reduce((m, u) => Math.max(m, u.count), 0);
 
+  // 未経過分 = 本日(JST)以降のセッション（日付は UTC 0:00 保存なので日付部分で比較）
+  const todayStr = getTodayStr();
   const filtered = sessions.filter(s => {
+    if (filterPeriod === 'upcoming' && s.date.split('T')[0] < todayStr) return false;
     if (filterSpeaker !== 'all' && s.speaker?.id !== filterSpeaker) return false;
     if (filterRound !== 'all' && s.roundNumber !== parseInt(filterRound)) return false;
     return true;
@@ -200,6 +204,13 @@ export default function RotationPage() {
               <SelectItem value="1">1巡目</SelectItem>
               <SelectItem value="2">2巡目</SelectItem>
               <SelectItem value="3">3巡目</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterPeriod} onValueChange={v => setFilterPeriod(v || 'upcoming')}>
+            <SelectTrigger className="w-32 border-[#E0E4EF] h-8 text-sm"><SelectValue placeholder="期間" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="upcoming">未経過分</SelectItem>
+              <SelectItem value="all">すべて</SelectItem>
             </SelectContent>
           </Select>
           <div className="flex-1" />
