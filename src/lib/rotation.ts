@@ -5,6 +5,7 @@ import {
   SESSION_DAYS,
   ROTATION_FIXED_UNTIL,
   ROTATION_NO_REPEAT_WINDOW,
+  getTodayStr,
 } from './constants';
 
 type TxClient = Prisma.TransactionClient | PrismaClient;
@@ -15,6 +16,19 @@ type TxClient = Prisma.TransactionClient | PrismaClient;
  */
 function isReviewSession(adminNote: string | null): boolean {
   return !!adminNote && /棚卸し|振り返り/.test(adminNote);
+}
+
+/**
+ * 発話者を再割当してよい下限時刻（ミリ秒）。
+ * この時刻「以前（当日を含む）」のセッションは履歴として固定し、一切変更しない。
+ * = ROTATION_FIXED_UNTIL（固定境界日）と「当日(JST)」の遅い方。
+ * これにより、過去・当日の発話者が heal/均等化で書き換わることを防ぐ
+ * （実際に登壇した人の記録＝発話回数のカウントを壊さない）。
+ */
+function reassignFloorMs(cutoffStr: string): number {
+  const fixedUntil = new Date(`${cutoffStr}T23:59:59.999Z`).getTime();
+  const todayFloor = new Date(`${getTodayStr()}T00:00:00.000Z`).getTime();
+  return Math.max(fixedUntil, todayFloor);
 }
 
 export type SpeakerCount = {
@@ -49,8 +63,8 @@ export async function rebalanceFutureSpeakers(
   tx: TxClient = prisma,
   rng: () => number = Math.random
 ): Promise<RebalanceResult> {
-  // セッション date は UTC 0:00 で保存。cutoff 当日いっぱい（その日まで）を固定とする。
-  const cutoff = new Date(`${cutoffStr}T23:59:59.999Z`).getTime();
+  // 固定境界（この時刻以前は変更しない）。過去・当日は履歴として必ず固定する。
+  const cutoff = reassignFloorMs(cutoffStr);
 
   const members = await tx.user.findMany({
     where: { choreiStatus: 'active', deletedAt: null },
@@ -165,7 +179,8 @@ export async function healFutureSpeakers(
   tx: TxClient = prisma,
   rng: () => number = Math.random
 ): Promise<HealResult> {
-  const cutoff = new Date(`${cutoffStr}T23:59:59.999Z`).getTime();
+  // 固定境界（この時刻以前は変更しない）。過去・当日は履歴として必ず固定する。
+  const cutoff = reassignFloorMs(cutoffStr);
 
   const members = await tx.user.findMany({
     where: { choreiStatus: 'active', deletedAt: null },
