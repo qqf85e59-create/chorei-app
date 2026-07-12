@@ -92,7 +92,7 @@ export default function SettlementTab({ event }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           totalAmount: parseInt(totalAmount, 10),
-          payerId: parseInt(payerId, 10),
+          payerId, // ユーザーIDは cuid（文字列）。parseInt すると NaN→null になり保存が必ず失敗するため文字列のまま送る
           status,
           note
         }),

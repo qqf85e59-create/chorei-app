@@ -32,6 +32,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
+    // 支払者は当該ランチ会の参加者であることを検証（typo/不正IDの取り込み防止）
+    const payer = await prisma.participation.findUnique({
+      where: { eventId_userId: { eventId, userId: payerId } },
+    });
+    if (!payer) {
+      return NextResponse.json({ error: "支払者はこのランチ会の参加者を指定してください" }, { status: 400 });
+    }
+
     // 実参加人数を取得（当日欠席 attended=false は割り勘から除外）
     const participants = await prisma.participation.count({
       where: { eventId, attended: true }
