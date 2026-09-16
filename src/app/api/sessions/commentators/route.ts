@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
+import { pickCommentators } from '@/lib/absence-logic';
 
 // [12] Phase 1 sessions do not have the commentator concept
 export async function POST(request: Request) {
@@ -32,48 +33,18 @@ export async function POST(request: Request) {
       );
     }
 
-    // 2. サブ発話者候補となるユーザーを取得（メイン発話者は除外）
-    //    朝礼参加対象（choreiStatus: 'active'）に限定する。
-    //    これを忘れると朝礼参加対象外/退会予定メンバーが応答者に抽選されてしまう。
-    const candidateUsers = await prisma.user.findMany({
-      where: {
-        deletedAt: null,
-        choreiStatus: 'active',
-        ...(targetSession.speakerId ? { id: { not: targetSession.speakerId } } : {})
-      },
-    });
+    // 2. 応答者を抽選する。
+    //    発話者・欠席（申請/absent/left_early/unspoken）・直前回の応答者を除き、
+    //    担当回数の少ない人からランダムに選ぶ（等級・職種は一切参照しない）。
+    //    旧実装は sort(() => 0.5 - Math.random()) による偏ったシャッフル＋等級順の
+    //    事前割当が残っており、特定メンバーに応答者が集中していた。
+    const selected = await pickCommentators(targetSession, count, prisma);
 
-    // 3. 対象セッションにおける 出欠（Attendance）と 事前申請（AbsenceRequest）を取得
-    const attendances = await prisma.attendance.findMany({
-      where: {
-        sessionId,
-        status: { in: ['absent', 'left_early', 'unspoken'] }
-      }
-    });
-    
-    const absenceRequests = await prisma.absenceRequest.findMany({
-      where: { sessionId }
-    });
-
-    // メイン発話者、および欠席・早退予定者のIDリスト
-    const excludeUserIds = new Set([
-      targetSession.speakerId,
-      ...attendances.map(a => a.userId),
-      ...absenceRequests.map(ar => ar.userId)
-    ]);
-
-    // 4. 除外リストに含まれない候補者に絞り込み
-    const availableUsers = candidateUsers.filter(u => !excludeUserIds.has(u.id));
-
-    if (availableUsers.length === 0) {
+    if (selected.length === 0) {
       return NextResponse.json({ error: 'No available candidates' }, { status: 400 });
     }
 
-    // 5. ランダムにシャッフルして必要な人数分抽出
-    const shuffled = availableUsers.sort(() => 0.5 - Math.random());
-    const selected = shuffled.slice(0, Math.min(count, shuffled.length));
-
-    // 6. DBを更新 (該当セッションとユーザーを紐付け)
+    // 3. DBを更新 (該当セッションとユーザーを紐付け)
     const updatedSession = await prisma.session.update({
       where: { id: sessionId },
       data: {

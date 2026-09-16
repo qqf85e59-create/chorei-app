@@ -11,7 +11,7 @@ export const PHASE1_MIN_TOTAL = 3;
 export const PHASE2_3_MIN_COMMENTATORS = 1; // Phase 2 は応答者1名（欠席時は自動再選）
 
 /** Unbiased Fisher–Yates shuffle (does not mutate the input). */
-function shuffle<T>(arr: readonly T[]): T[] {
+export function shuffle<T>(arr: readonly T[]): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -135,8 +135,77 @@ export async function reflowSpeakers(
 }
 
 /**
+ * これまでの応答者担当回数（中止回を除く全期間）を集計する。
+ * `excludeSessionId` は集計から外す（引き直す当の回を自分の回数に数えないため）。
+ */
+async function countCommentatorAssignments(
+  tx: TxClient = prisma,
+  excludeSessionId?: number
+): Promise<Map<string, number>> {
+  const sessions = await tx.session.findMany({
+    where: {
+      status: { not: 'cancelled' },
+      ...(excludeSessionId !== undefined ? { id: { not: excludeSessionId } } : {}),
+    },
+    select: { commentators: { select: { id: true } } },
+  });
+  const counts = new Map<string, number>();
+  for (const s of sessions) {
+    for (const c of s.commentators) counts.set(c.id, (counts.get(c.id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/**
+ * 応答者（コメンテーター）を抽選する。等級・職種は一切参照しない。
+ *
+ *   - 候補 = 朝礼参加対象(choreiStatus:'active')かつ未削除のメンバー
+ *   - その回の発話者・欠席（申請/absent/left_early/unspoken）の人は除外
+ *   - 直前の回の応答者は避ける（2回続けて同じ人にしない。人数が足りない場合のみ緩和）
+ *   - 残った候補のうち「これまでの担当回数が最も少ない人」を選ぶ。同数はランダム。
+ *
+ * 回数で均す設計なのは、等級順の輪番で作られた過去の偏り（特定の人に集中）を
+ * 埋め戻しつつ、誰がいつ当たるかはランダムに保つため。
+ */
+export async function pickCommentators(
+  target: { id: number; date: Date; speakerId: string | null },
+  desiredCount: number,
+  tx: TxClient = prisma
+): Promise<{ id: string; name: string }[]> {
+  const unavailable = await getUnavailableUserIds(target.id, tx);
+
+  // 朝礼参加対象（choreiStatus: 'active'）かつ未削除のメンバーのみを候補にする。
+  const candidateUsers = await tx.user.findMany({
+    where: {
+      deletedAt: null,
+      choreiStatus: 'active',
+      ...(target.speakerId ? { id: { not: target.speakerId } } : {}),
+    },
+    select: { id: true, name: true },
+  });
+  const availableUsers = candidateUsers.filter((u) => !unavailable.has(u.id));
+
+  // 直前の回（中止を除く）の応答者は避ける。避けると人数が足りない場合のみ緩める。
+  const previous = await tx.session.findFirst({
+    where: { date: { lt: target.date }, status: { not: 'cancelled' } },
+    orderBy: { date: 'desc' },
+    include: { commentators: { select: { id: true } } },
+  });
+  const previousIds = new Set((previous?.commentators ?? []).map((c) => c.id));
+  const preferred = availableUsers.filter((u) => !previousIds.has(u.id));
+  const pool = preferred.length >= desiredCount ? preferred : availableUsers;
+
+  // 先にシャッフルしてから担当回数の昇順に並べる＝同数の中では一様ランダムに選ばれる。
+  const counts = await countCommentatorAssignments(tx, target.id);
+  const ranked = shuffle(pool).sort((a, b) => (counts.get(a.id) ?? 0) - (counts.get(b.id) ?? 0));
+
+  return ranked.slice(0, Math.min(desiredCount, ranked.length));
+}
+
+/**
  * Re-select commentators for a session, replacing unavailable users.
- * Target commentator count defaults to what's currently set (or 4 if not set).
+ * Target commentator count defaults to what's currently set (or the minimum).
+ * 抽選ルールは pickCommentators を参照（等級無関係・担当回数を均すランダム）。
  */
 export async function reselectCommentators(sessionId: number, tx: TxClient = prisma): Promise<number> {
   const targetSession = await tx.session.findUnique({
@@ -146,22 +215,7 @@ export async function reselectCommentators(sessionId: number, tx: TxClient = pri
   if (!targetSession) return 0;
 
   const desiredCount = Math.max(targetSession.commentators.length, PHASE2_3_MIN_COMMENTATORS);
-
-  const unavailable = await getUnavailableUserIds(sessionId, tx);
-
-  // 朝礼参加対象（choreiStatus: 'active'）かつ未削除のメンバーのみを候補にする。
-  const candidateUsers = await tx.user.findMany({
-    where: {
-      deletedAt: null,
-      choreiStatus: 'active',
-      ...(targetSession.speakerId ? { id: { not: targetSession.speakerId } } : {}),
-    },
-  });
-  const availableUsers = candidateUsers.filter((u) => !unavailable.has(u.id));
-
-  // Shuffle and select
-  const shuffled = shuffle(availableUsers);
-  const selected = shuffled.slice(0, Math.min(desiredCount, shuffled.length));
+  const selected = await pickCommentators(targetSession, desiredCount, tx);
 
   await tx.session.update({
     where: { id: sessionId },
