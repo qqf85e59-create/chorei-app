@@ -25,7 +25,7 @@ interface SessionData {
   status: string;
   adminNote: string | null;
   speaker: { id: string; name: string; grade: string };
-  topic: { id: number; topicText: string; weekNumber: number };
+  topic: { id: number; topicText: string; weekNumber: number } | null;
   phase: { id: number; name: string; phaseNumber: number };
   commentators?: { id: string; name: string; grade: string }[];
 }
@@ -186,15 +186,17 @@ export default function DashboardPage() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
-                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-2">主題</p>
-                        <div className="flex items-start gap-2">
-                          <BookOpen className="h-4 w-4 text-[#0070CC] shrink-0 mt-0.5" />
-                          <span className="text-sm font-bold text-[#00135D] leading-snug">{todaySession.topic.topicText}</span>
+                    <div className={`grid gap-3 ${todaySession.topic ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                      {todaySession.topic && (
+                        <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
+                          <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-2">主題</p>
+                          <div className="flex items-start gap-2">
+                            <BookOpen className="h-4 w-4 text-[#0070CC] shrink-0 mt-0.5" />
+                            <span className="text-sm font-bold text-[#00135D] leading-snug">{todaySession.topic.topicText}</span>
+                          </div>
+                          <p className="text-[10px] text-muted-foreground mt-1.5">第{todaySession.topic.weekNumber}週</p>
                         </div>
-                        <p className="text-[10px] text-muted-foreground mt-1.5">第{todaySession.topic.weekNumber}週</p>
-                      </div>
+                      )}
                       <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-2">発話者</p>
                         <div className="flex items-center gap-2">

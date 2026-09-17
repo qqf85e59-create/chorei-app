@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut, useSession } from 'next-auth/react';
 import {
-  LayoutDashboard, CalendarDays, Users, RotateCcw, BookOpen,
+  LayoutDashboard, CalendarDays, Users, RotateCcw,
   TrendingUp, FileText, LogOut, Menu, X, Home, Video, Utensils
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,7 +22,6 @@ const navItems: NavItem[] = [
   { label:'ホーム',         href:'/home',      icon:<Home className="h-3.5 w-3.5" /> },
   { label:'カレンダー',     href:'/calendar',  icon:<CalendarDays className="h-3.5 w-3.5" /> },
   { label:'輪番計画',       href:'/rotation',  icon:<RotateCcw className="h-3.5 w-3.5" />, adminOnly:true },
-  { label:'主題一覧',       href:'/topics',    icon:<BookOpen className="h-3.5 w-3.5" /> },
   { label:'フェーズ進捗',   href:'/phase',     icon:<TrendingUp className="h-3.5 w-3.5" /> },
   { label:'参加者管理',     href:'/members',   icon:<Users className="h-3.5 w-3.5" />, adminOnly:true },
   { label:'グランドルール', href:'/grand-rule', icon:<FileText className="h-3.5 w-3.5" /> },

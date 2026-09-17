@@ -25,11 +25,11 @@ const TYPE_LABELS: Record<string, string> = {
 interface SessionData {
   id: number; date: string; startTime: string; endTime: string;
   status: string; speaker: { id: string; name: string } | null;
-  topic: { id: number; topicText: string };
+  topic: { id: number; topicText: string } | null;
 }
 interface AbsenceItem {
   id: number; type: string; note: string | null; requestedAt: string;
-  session: { id: number; date: string; topic: { topicText: string } };
+  session: { id: number; date: string; topic: { topicText: string } | null };
 }
 
 /** UTC ベースの日付フォーマット（タイムゾーン非依存） */

@@ -15,7 +15,7 @@ interface SessionData {
   endTime: string;
   status: string;
   speaker: { id: string; name: string; grade: string };
-  topic: { id: number; topicText: string; weekNumber: number };
+  topic: { id: number; topicText: string; weekNumber: number } | null;
   phase: { id: number; name: string; phaseNumber: number };
 }
 
@@ -179,9 +179,11 @@ export default function CalendarPage() {
                             <Mic className="h-3 w-3 text-[#0070CC]" />{s.speaker?.name}
                             <span className="text-xs text-muted-foreground font-normal">({GRADE_LABELS[s.speaker?.grade] || s.speaker?.grade})</span>
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
-                            <BookOpen className="h-3 w-3" />{s.topic.topicText}
-                          </p>
+                          {s.topic && (
+                            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+                              <BookOpen className="h-3 w-3" />{s.topic.topicText}
+                            </p>
+                          )}
                         </div>
                       )) : <p className="text-sm text-muted-foreground">{holiday ? '祝日（朝礼なし）' : '予定なし'}</p>}
                     </div>
@@ -206,7 +208,7 @@ export default function CalendarPage() {
               {[
                 { label:'日時', value:`${new Date(selectedSession.date).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'})} ${selectedSession.startTime}〜${selectedSession.endTime}` },
                 { label:'発話者', value:`${selectedSession.speaker?.name}（${GRADE_LABELS[selectedSession.speaker?.grade] || selectedSession.speaker?.grade}）` },
-                { label:'主題', value:selectedSession.topic.topicText },
+                ...(selectedSession.topic ? [{ label:'主題', value:selectedSession.topic.topicText }] : []),
                 { label:'フェーズ', value:`第${selectedSession.phase.phaseNumber}フェーズ · ${selectedSession.phase.name}` },
                 { label:'状態', value:selectedSession.status==='completed'?'完了':selectedSession.status==='cancelled'?'中止':'予定' },
               ].map(({ label, value }) => (

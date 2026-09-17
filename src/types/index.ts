@@ -25,7 +25,7 @@ export interface SessionWithRelations {
   date: string;
   phaseId: number;
   weekNumber: number;
-  topicId: number;
+  topicId: number | null;
   speakerId: string;
 
   startTime: string;
@@ -47,7 +47,7 @@ export interface SessionWithRelations {
     id: number;
     topicText: string;
     weekNumber: number;
-  };
+  } | null;
   phase: {
     id: number;
     name: string;

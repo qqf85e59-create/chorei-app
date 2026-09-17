@@ -18,7 +18,7 @@ interface SessionData {
   id: number; date: string; startTime: string; endTime: string;
   status: string; adminNote: string | null; roundNumber: number; weekNumber: number;
   speaker: { id: string; name: string; grade: string } | null;
-  topic: { id: number; topicText: string; weekNumber: number };
+  topic: { id: number; topicText: string; weekNumber: number } | null;
   phase: { id: number; name: string; phaseNumber: number };
 }
 interface UserData { id: string; name: string; grade: string; }
@@ -57,13 +57,13 @@ export default function RotationPage() {
 
   function openEdit(s: SessionData) {
     setEditSession(s);
-    setEditForm({ speakerId:s.speaker?.id ?? '', topicId:String(s.topic.id), startTime:s.startTime, endTime:s.endTime, status:s.status, adminNote:s.adminNote||'' });
+    setEditForm({ speakerId:s.speaker?.id ?? '', topicId:s.topic ? String(s.topic.id) : '', startTime:s.startTime, endTime:s.endTime, status:s.status, adminNote:s.adminNote||'' });
   }
   async function saveEdit() {
     if (!editSession) return;
     await fetch('/api/sessions', {
       method:'PUT', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ id:editSession.id, speakerId:editForm.speakerId, topicId:parseInt(editForm.topicId), startTime:editForm.startTime, endTime:editForm.endTime, status:editForm.status, adminNote:editForm.adminNote||null }),
+      body:JSON.stringify({ id:editSession.id, speakerId:editForm.speakerId, topicId:editForm.topicId ? parseInt(editForm.topicId) : null, startTime:editForm.startTime, endTime:editForm.endTime, status:editForm.status, adminNote:editForm.adminNote||null }),
     });
     setEditSession(null); fetchData();
   }
@@ -242,7 +242,7 @@ export default function RotationPage() {
                       {dupIds.has(s.id) && <span className="ml-1 text-[10px] text-[#C0392B]">⚠連続</span>}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{s.speaker ? (GRADE_LABELS[s.speaker.grade] || s.speaker.grade) : ''}</td>
-                    <td className="px-4 py-3 text-xs text-[#3D4252] max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{s.topic.topicText}</td>
+                    <td className="px-4 py-3 text-xs text-[#3D4252] max-w-[200px] overflow-hidden text-ellipsis whitespace-nowrap">{s.topic?.topicText ?? '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-md border ${statusStyle[s.status] || statusStyle.scheduled}`}>{statusLabel[s.status] || s.status}</span>
                     </td>
@@ -282,9 +282,12 @@ export default function RotationPage() {
               </div>
               <div>
                 <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">主題</Label>
-                <Select value={editForm.topicId} onValueChange={v => setEditForm({ ...editForm, topicId: v||'' })}>
+                <Select value={editForm.topicId || 'none'} onValueChange={v => setEditForm({ ...editForm, topicId: !v || v === 'none' ? '' : v })}>
                   <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>{topics.map(t => <SelectItem key={t.id} value={String(t.id)}>第{t.weekNumber}週: {t.topicText}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    <SelectItem value="none">なし</SelectItem>
+                    {topics.map(t => <SelectItem key={t.id} value={String(t.id)}>第{t.weekNumber}週: {t.topicText}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">

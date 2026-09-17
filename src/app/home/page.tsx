@@ -24,7 +24,7 @@ interface SessionData {
   status: string;
   adminNote: string | null;
   speaker: { id: string; name: string; grade: string } | null;
-  topic: { id: number; topicText: string; weekNumber: number };
+  topic: { id: number; topicText: string; weekNumber: number } | null;
   phase: { id: number; name: string; phaseNumber: number };
   commentators?: { id: string; name: string; grade: string }[];
 }
@@ -272,15 +272,17 @@ export default function HomePage() {
                           )}
                         </div>
                       </div>
-                      <div>
-                        <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">主題</p>
-                        <div className="flex items-start gap-1">
-                          <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0 mt-0.5" />
-                          <span className="text-[11px] font-semibold text-[#00135D] leading-snug line-clamp-3">
-                            {todaySession.topic.topicText}
-                          </span>
+                      {todaySession.topic && (
+                        <div>
+                          <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-0.5">主題</p>
+                          <div className="flex items-start gap-1">
+                            <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0 mt-0.5" />
+                            <span className="text-[11px] font-semibold text-[#00135D] leading-snug line-clamp-3">
+                              {todaySession.topic.topicText}
+                            </span>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                     {todaySession.adminNote && (
                       <div className="flex items-start gap-1 p-2 bg-[#E8F2FB] border border-[#BDD9F5] rounded-lg">
@@ -410,13 +412,15 @@ export default function HomePage() {
                         )}
                       </div>
                     </div>
-                    <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
-                      <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1.5">主題</p>
-                      <div className="flex items-start gap-1.5">
-                        <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0 mt-0.5" />
-                        <span className="text-xs font-semibold text-[#00135D] leading-snug line-clamp-2">{s.topic.topicText}</span>
+                    {s.topic && (
+                      <div className="bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
+                        <p className="text-[9px] text-muted-foreground uppercase tracking-widest mb-1.5">主題</p>
+                        <div className="flex items-start gap-1.5">
+                          <BookOpen className="h-3 w-3 text-[#0070CC] shrink-0 mt-0.5" />
+                          <span className="text-xs font-semibold text-[#00135D] leading-snug line-clamp-2">{s.topic.topicText}</span>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                   {/* Phase 1: コメント順（予定） */}
                   {isP1 && order.length > 0 && (
@@ -473,7 +477,7 @@ export default function HomePage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] text-muted-foreground font-medium mb-1">あなたの次の発話予定</p>
                     <p className="text-sm font-bold text-[#00135D] tracking-tight">{formatDate(nextSpeaking.date)}</p>
-                    <p className="text-xs text-[#1E3A8A] mt-1">主題：{nextSpeaking.topic.topicText}</p>
+                    {nextSpeaking.topic && <p className="text-xs text-[#1E3A8A] mt-1">主題：{nextSpeaking.topic.topicText}</p>}
                   </div>
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 </div>
@@ -531,7 +535,7 @@ export default function HomePage() {
                   <div key={s.id} className={`flex items-center justify-between px-5 py-3.5 ${i < pastSpeaking.length-1 ? 'border-b border-[#E0E4EF]' : ''}`}>
                     <div>
                       <p className="text-sm font-medium text-[#1A1D23]">{formatDate(s.date)}</p>
-                      <p className="text-xs text-muted-foreground mt-0.5">{s.topic.topicText}</p>
+                      {s.topic && <p className="text-xs text-muted-foreground mt-0.5">{s.topic.topicText}</p>}
                     </div>
                     <Badge variant="outline" className="border-[#E0E4EF] text-muted-foreground text-xs">完了</Badge>
                   </div>
@@ -543,21 +547,13 @@ export default function HomePage() {
           <Separator className="bg-[#E0E4EF]" />
 
           {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <Link href="/grand-rule">
               <button className="w-full flex flex-col items-center gap-2.5 py-5 px-3 border border-[#E0E4EF] rounded-xl bg-white cursor-pointer font-[inherit] text-xs text-[#3D4252] font-medium hover:bg-[#E8F2FB] hover:border-[#BDD9F5] transition-all">
                 <div className="w-9 h-9 rounded-[10px] bg-[#0070CC14] flex items-center justify-center">
                   <FileText className="h-[18px] w-[18px] text-[#0070CC]" />
                 </div>
                 グランドルール確認
-              </button>
-            </Link>
-            <Link href="/topics">
-              <button className="w-full flex flex-col items-center gap-2.5 py-5 px-3 border border-[#E0E4EF] rounded-xl bg-white cursor-pointer font-[inherit] text-xs text-[#3D4252] font-medium hover:bg-[#E8F2FB] hover:border-[#BDD9F5] transition-all">
-                <div className="w-9 h-9 rounded-[10px] bg-[#0070CC14] flex items-center justify-center">
-                  <BookOpen className="h-[18px] w-[18px] text-[#0070CC]" />
-                </div>
-                主題カレンダー
               </button>
             </Link>
           </div>

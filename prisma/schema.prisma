@@ -130,7 +130,7 @@ model Session {
   date        DateTime
   phaseId     Int
   weekNumber  Int
-  topicId     Int
+  topicId     Int?
   speakerId   String?
   startTime   String    @default("09:00")
   endTime     String    @default("09:10")
@@ -141,7 +141,7 @@ model Session {
   commentatorsPreset    Boolean   @default(false)
 
   phase            Phase             @relation(fields: [phaseId], references: [id])
-  topic            Topic             @relation(fields: [topicId], references: [id])
+  topic            Topic?            @relation(fields: [topicId], references: [id])
   speaker          User?             @relation("SessionSpeaker", fields: [speakerId], references: [id])
   commentators     User[]            @relation("SessionCommentators")
   attendances      Attendance[]
