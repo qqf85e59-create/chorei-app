@@ -23,8 +23,8 @@ export const JOB_LABELS: Record<string, string> = {
   e: 'エキスパート',
 };
 
-// Session days: Tue=2, Thu=4, Fri=5
-export const SESSION_DAYS = [2, 4, 5] as const;
+// Session days: Tue=2, Fri=5（2026/9/20〜 火・金のみ。祝日・お盆・年末年始は Holiday で除外）
+export const SESSION_DAYS = [2, 5] as const;
 
 // 発話者（スピーカー）輪番の固定境界日。
 // この日「まで」（含む）のセッションは確定済みとして発話者を一切変更しない。
