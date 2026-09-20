@@ -54,6 +54,18 @@ interface PhaseInfo {
   endDate: string;
   description: string | null;
   _count: { sessions: number };
+  /** 実際に回がある期間。中断をはさんで再開した場合は複数になる。 */
+  periods?: { start: string; end: string }[];
+}
+
+/** 今日を含む（なければ最後の）開催期間。フェーズの登録期間ではなく実績で出す。 */
+function currentPeriod(p: PhaseInfo, todayStr: string) {
+  const periods = p.periods ?? [];
+  if (periods.length === 0) return { start: p.startDate, end: p.endDate };
+  return (
+    periods.find((x) => x.start.split('T')[0] <= todayStr && x.end.split('T')[0] >= todayStr) ??
+    periods[periods.length - 1]
+  );
 }
 
 
@@ -178,10 +190,19 @@ export default function HomePage() {
 
   // フェーズ進行情報: 進行中フェーズ、なければ直近の予定フェーズ
   const todayStr = getTodayStr();
-  const displayPhase = phaseInfo.find(ph =>
-    ph.startDate.split('T')[0] <= todayStr && ph.endDate.split('T')[0] >= todayStr
-  ) ?? phaseInfo.find(ph => ph.startDate.split('T')[0] > todayStr);
-  const isActivePhase = displayPhase != null && displayPhase.startDate.split('T')[0] <= todayStr;
+  // 今日／次回の回が属するフェーズを優先する（フェーズの登録期間は中断をはさむと
+  // 重なることがあり、日付だけで引くと実態とずれるため）。
+  const currentPhaseNumber = todaySession?.phase.phaseNumber ?? upcomingSessions[0]?.phase.phaseNumber;
+  const displayPhase =
+    (currentPhaseNumber != null
+      ? phaseInfo.find(ph => ph.phaseNumber === currentPhaseNumber)
+      : undefined) ??
+    phaseInfo.find(ph =>
+      ph.startDate.split('T')[0] <= todayStr && ph.endDate.split('T')[0] >= todayStr
+    ) ??
+    phaseInfo.find(ph => ph.startDate.split('T')[0] > todayStr);
+  const displayPeriod = displayPhase ? currentPeriod(displayPhase, todayStr) : null;
+  const isActivePhase = displayPeriod != null && displayPeriod.start.split('T')[0] <= todayStr;
   const phaseFlow = displayPhase ? (SESSION_STRUCTURE[displayPhase.phaseNumber] ?? []) : [];
 
   return (
@@ -212,7 +233,7 @@ export default function HomePage() {
                     {isActivePhase ? '進行中' : '準備中'}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">
-                    {new Date(displayPhase.startDate).getUTCMonth()+1}月{new Date(displayPhase.startDate).getUTCDate()}日〜{new Date(displayPhase.endDate).getUTCMonth()+1}月{new Date(displayPhase.endDate).getUTCDate()}日　全{displayPhase._count.sessions}回
+                    {new Date(displayPeriod!.start).getUTCMonth()+1}月{new Date(displayPeriod!.start).getUTCDate()}日〜{new Date(displayPeriod!.end).getUTCMonth()+1}月{new Date(displayPeriod!.end).getUTCDate()}日　全{displayPhase._count.sessions}回
                   </span>
                 </div>
               </div>

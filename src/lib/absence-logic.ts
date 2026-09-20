@@ -1,5 +1,6 @@
 import { PrismaClient, Prisma } from '@prisma/client';
 import { prisma } from './prisma';
+import { drawCommentOrder } from './comment-order';
 
 // Type for transaction client or regular prisma client
 type TxClient = Prisma.TransactionClient | PrismaClient;
@@ -117,6 +118,12 @@ export async function reflowSpeakers(
       data: { speakerId: newSpeaker },
     });
     changed++;
+
+    // コメント順を確定済みの回で発話者が変わったら引き直す。
+    // （そのままだと新発話者がコメント順から外れ、旧発話者が末尾に付いてしまう）
+    if (s.commentOrderDrawnAt !== null) {
+      await drawCommentOrder(s.id, tx);
+    }
 
     if (newSpeaker) {
       await tx.notification.create({

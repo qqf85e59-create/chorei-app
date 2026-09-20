@@ -22,19 +22,17 @@ interface SessionData {
   phase: { id: number; name: string; phaseNumber: number };
 }
 interface UserData { id: string; name: string; grade: string; }
-interface TopicData { id: number; topicText: string; weekNumber: number; }
 
 export default function RotationPage() {
   const { data: session } = useSession();
   const [sessions, setSessions] = useState<SessionData[]>([]);
   const [users, setUsers] = useState<UserData[]>([]);
-  const [topics, setTopics] = useState<TopicData[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterSpeaker, setFilterSpeaker] = useState('all');
   const [filterRound, setFilterRound] = useState('all');
   const [filterPeriod, setFilterPeriod] = useState('upcoming'); // 既定は未経過分のみ
   const [editSession, setEditSession] = useState<SessionData | null>(null);
-  const [editForm, setEditForm] = useState({ speakerId:'', topicId:'', startTime:'', endTime:'', status:'', adminNote:'' });
+  const [editForm, setEditForm] = useState({ speakerId:'', startTime:'', endTime:'', status:'', adminNote:'' });
   const [generating, setGenerating] = useState(false);
   const [rebalancing, setRebalancing] = useState(false);
 
@@ -49,32 +47,41 @@ export default function RotationPage() {
       if (isAdmin) {
         try { await fetch('/api/rotation/fill', { method: 'POST' }); } catch { /* 補充失敗は致命的でない */ }
       }
-      const [sr, ur, tr] = await Promise.all([fetch('/api/sessions'), fetch('/api/users'), fetch('/api/topics')]);
-      setSessions(await sr.json()); setUsers(await ur.json()); setTopics(await tr.json());
+      const [sr, ur] = await Promise.all([fetch('/api/sessions'), fetch('/api/users')]);
+      setSessions(await sr.json()); setUsers(await ur.json());
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   }
 
   function openEdit(s: SessionData) {
     setEditSession(s);
-    setEditForm({ speakerId:s.speaker?.id ?? '', topicId:s.topic ? String(s.topic.id) : '', startTime:s.startTime, endTime:s.endTime, status:s.status, adminNote:s.adminNote||'' });
+    setEditForm({ speakerId:s.speaker?.id ?? '', startTime:s.startTime, endTime:s.endTime, status:s.status, adminNote:s.adminNote||'' });
   }
   async function saveEdit() {
     if (!editSession) return;
     await fetch('/api/sessions', {
       method:'PUT', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ id:editSession.id, speakerId:editForm.speakerId, topicId:editForm.topicId ? parseInt(editForm.topicId) : null, startTime:editForm.startTime, endTime:editForm.endTime, status:editForm.status, adminNote:editForm.adminNote||null }),
+      body:JSON.stringify({ id:editSession.id, speakerId:editForm.speakerId, startTime:editForm.startTime, endTime:editForm.endTime, status:editForm.status, adminNote:editForm.adminNote||null }),
     });
     setEditSession(null); fetchData();
   }
+  // 既存の最終回の翌開催日から、指定した日まで予定を作る（火・金／祝日・お盆・年末年始は除外）。
   async function handleGenerate() {
+    const lastDate = sessions.reduce((m, s) => (s.date > m ? s.date : m), '');
+    const lastStr = lastDate ? lastDate.split('T')[0] : '(なし)';
+    const suggested = lastDate ? `${Number(lastStr.slice(0, 4)) + 1}${lastStr.slice(4)}` : '';
+    const until = prompt(`現在の最終回は ${lastStr} です。いつまでの予定を作りますか？（YYYY-MM-DD）`, suggested);
+    if (!until) return;
     setGenerating(true);
     try {
-      const res = await fetch('/api/rotation/generate', { method:'POST' });
-      if (!res.ok) {
-        const d = await res.json().catch(() => ({}));
-        alert(`自動生成に失敗しました: ${d.error ?? res.status}`);
-      }
+      const res = await fetch('/api/rotation/generate', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({ until: until.trim() }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (res.ok) alert(`${d.created}件の予定を作成しました（${d.from ?? '-'}〜${d.to ?? '-'}）\n祝日・休暇 ${d.holidaysAdded ?? 0}件を登録し、その日は除いています。`);
+      else alert(`自動生成に失敗しました: ${d.error ?? res.status}`);
       fetchData();
     }
     catch (e) { console.error(e); }
@@ -285,16 +292,6 @@ export default function RotationPage() {
                 <Select value={editForm.speakerId} onValueChange={v => setEditForm({ ...editForm, speakerId: v||'' })}>
                   <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
                   <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.id}>{u.name} ({GRADE_LABELS[u.grade]||u.grade})</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs font-semibold text-[#3D4252] mb-1.5 block">主題</Label>
-                <Select value={editForm.topicId || 'none'} onValueChange={v => setEditForm({ ...editForm, topicId: !v || v === 'none' ? '' : v })}>
-                  <SelectTrigger className="border-[#E0E4EF] h-9 text-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">なし</SelectItem>
-                    {topics.map(t => <SelectItem key={t.id} value={String(t.id)}>第{t.weekNumber}週: {t.topicText}</SelectItem>)}
-                  </SelectContent>
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">

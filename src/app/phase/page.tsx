@@ -16,6 +16,33 @@ interface PhaseData {
   sessionDurationMinutes: number;
   description: string | null;
   _count: { sessions: number };
+  /** 実際に回がある期間。中断をはさんで再開した場合は複数になる。 */
+  periods?: { start: string; end: string }[];
+}
+
+/** 表示・判定に使う期間（回が無いフェーズは登録上の開始〜終了日）。 */
+function spanOf(p: PhaseData) {
+  const periods = p.periods ?? [];
+  if (periods.length === 0) return { start: new Date(p.startDate), end: new Date(p.endDate) };
+  return { start: new Date(periods[0].start), end: new Date(periods[periods.length - 1].end) };
+}
+
+const fmtMD = (d: Date) => `${d.getUTCMonth() + 1}月${d.getUTCDate()}日`;
+
+/** 「2026年5月7日〜6月30日 / 9月18日〜2027年9月28日」のような表示にする。 */
+function periodLabel(p: PhaseData) {
+  const periods = p.periods ?? [];
+  if (periods.length === 0) {
+    const s = new Date(p.startDate), e = new Date(p.endDate);
+    return `${s.getUTCFullYear()}年${fmtMD(s)}〜${fmtMD(e)}`;
+  }
+  return periods
+    .map(({ start, end }) => {
+      const s = new Date(start), e = new Date(end);
+      const endLabel = e.getUTCFullYear() === s.getUTCFullYear() ? fmtMD(e) : `${e.getUTCFullYear()}年${fmtMD(e)}`;
+      return `${s.getUTCFullYear()}年${fmtMD(s)}〜${endLabel}`;
+    })
+    .join(' ／ ');
 }
 
 const PHASE_CONFIG = [
@@ -38,13 +65,16 @@ export default function PhasePage() {
   }, []);
 
   function getStatus(p: PhaseData): 'completed' | 'current' | 'upcoming' {
-    if (now > new Date(p.endDate)) return 'completed';
-    if (now >= new Date(p.startDate)) return 'current';
+    const { start, end } = spanOf(p);
+    if (now > end) return 'completed';
+    if (now >= start) return 'current';
     return 'upcoming';
   }
   function getProgress(p: PhaseData) {
-    const s = new Date(p.startDate).getTime(), e = new Date(p.endDate).getTime(), n = now.getTime();
+    const { start, end } = spanOf(p);
+    const s = start.getTime(), e = end.getTime(), n = now.getTime();
     if (n < s) return 0; if (n > e) return 100;
+    if (e === s) return 100;
     return Math.round((n - s) / (e - s) * 100);
   }
 
@@ -100,7 +130,7 @@ export default function PhasePage() {
             const progress = getProgress(phase);
             const cfg = PHASE_CONFIG[i] || PHASE_CONFIG[0];
             const IconComponent = cfg.icon;
-            const s = new Date(phase.startDate), e = new Date(phase.endDate);
+            const { start: s, end: e } = spanOf(phase);
             return (
               <Card key={phase.id}
                 className={`border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden transition-all ${status==='current'?'shadow-[0_4px_20px_rgba(0,19,93,0.15)]':''}`}>
@@ -114,7 +144,7 @@ export default function PhasePage() {
                       <p className="text-base font-bold text-white tracking-tight">第{phase.phaseNumber}フェーズ：{phase.name}</p>
                       <p className="text-xs text-white/70 mt-0.5 flex items-center gap-1.5">
                         <Calendar className="h-3 w-3" />
-                        {s.getFullYear()}年{s.getMonth()+1}月 〜 {e.getMonth()+1}月
+                        {periodLabel(phase)}
                       </p>
                     </div>
                   </div>
@@ -146,7 +176,7 @@ export default function PhasePage() {
                   </div>
                   <div>
                     <div className="flex justify-between text-xs text-muted-foreground mb-1.5">
-                      <span>{s.getMonth()+1}/{s.getDate()}</span>
+                      <span>{s.getUTCMonth()+1}/{s.getUTCDate()}</span>
                       <span className="font-semibold">{progress}% 完了</span>
                       <span>{e.getMonth()+1}/{e.getDate()}</span>
                     </div>

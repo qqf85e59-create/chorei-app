@@ -86,7 +86,7 @@ export const SESSION_STRUCTURE: Record<number, FlowStep[]> = {
   1: [
     { label: '冒頭',     duration: '30秒',    description: '運営が発話者を告知' },
     { label: '発話',     duration: '5分',     description: '発話者が話したいことを自由に話す（テーマなし）' },
-    { label: '関心表明', duration: '2分',     description: '聴取者7名が15〜20秒ずつ「関心を持った一点」を述べる' },
+    { label: '関心表明', duration: '2分',     description: '出席者が順に15〜20秒ずつ「関心を持った一点」を述べる（コメント順は当日抽選）' },
     { label: '締め',     duration: '1分30秒', description: '運営が締めの挨拶、次回の告知' },
   ],
   2: [

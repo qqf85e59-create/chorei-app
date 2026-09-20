@@ -302,101 +302,22 @@ export async function healFutureSpeakers(
 }
 
 /**
- * Generate rotation schedule for Phase 1
+ * 開催日（SESSION_DAYS の曜日・祝日を除く）を from〜to の範囲で列挙する。
+ * 祝日テーブルにはお盆・年末年始も休みとして入っているため、それらも自動で外れる。
+ * UTC 基準で計算するので Vercel(UTC) とローカル(JST) で結果が一致する。
  */
-export async function generateRotation(
-  phaseId: number,
-  roundNumber: number,
-  startDate: Date,
-  rng: () => number = Math.random
-) {
-  // Get all members who are active for morning assembly
-  const users = await prisma.user.findMany({
-    where: { choreiStatus: 'active', deletedAt: null }
-  });
-
-  // Get holidays
-  const holidays = await prisma.holiday.findMany({
-    where: { isActive: true },
-  });
-  const holidayDates = new Set(
-    holidays.map((h) => h.date.toISOString().split('T')[0])
-  );
-
-  // 発話順は等級を参照せず毎回ランダム（Fisher-Yates）。
-  const sortedUsers = [...users];
-  for (let i = sortedUsers.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [sortedUsers[i], sortedUsers[j]] = [sortedUsers[j], sortedUsers[i]];
-  }
-
-  // Generate session dates (Tue, Thu, Fri, skip holidays)
-  const sessionDates = getSessionDates(
-    startDate,
-    sortedUsers.length + 1, // +1 for review session
-    holidayDates
-  );
-
-  const sessions: Prisma.SessionUncheckedCreateInput[] = [];
-
-  for (let i = 0; i < sessionDates.length; i++) {
-    const date = sessionDates[i];
-    const weekNum = getWeekNumber(date, startDate);
-
-    if (i < sortedUsers.length) {
-      sessions.push({
-        date,
-        phaseId,
-        weekNumber: weekNum,
-        topicId: null, // テーマは廃止（2026-09-18〜）
-        speakerId: sortedUsers[i].id,
-        startTime: '09:00',
-        endTime: '09:15',
-        status: 'scheduled',
-        roundNumber,
-      });
-    } else {
-      // Review session
-      sessions.push({
-        date,
-        phaseId,
-        weekNumber: weekNum,
-        topicId: null,
-        speakerId: users.find((u) => u.role === 'admin')?.id || users[0].id,
-        startTime: '09:00',
-        endTime: '09:15',
-        status: 'scheduled',
-        roundNumber,
-        adminNote: `運営内棚卸し（${roundNumber}巡目終了後の振り返り）`,
-      });
-    }
-  }
-
-  return sessions;
-}
-
-
-export function getSessionDates(
-  startDate: Date,
-  count: number,
-  holidaySet: Set<string>
-): Date[] {
+export function listSessionDates(from: Date, to: Date, holidaySet: Set<string>): Date[] {
   const dates: Date[] = [];
-  const current = new Date(startDate);
-
-  // UTC-based throughout so results are identical on Vercel (UTC) and locally (JST).
-  // (Previously mixed local getDay() with UTC toISOString(), which could shift days.)
-  while (dates.length < count) {
-    const dayOfWeek = current.getUTCDay();
-    const dateStr = current.toISOString().split('T')[0];
-
+  const cur = new Date(from);
+  while (cur <= to) {
+    const dateStr = cur.toISOString().split('T')[0];
     if (
-      SESSION_DAYS.includes(dayOfWeek as (typeof SESSION_DAYS)[number]) &&
+      SESSION_DAYS.includes(cur.getUTCDay() as (typeof SESSION_DAYS)[number]) &&
       !holidaySet.has(dateStr)
     ) {
-      dates.push(new Date(current));
+      dates.push(new Date(cur));
     }
-    current.setUTCDate(current.getUTCDate() + 1);
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return dates;
 }
