@@ -69,7 +69,14 @@ export default function RotationPage() {
   }
   async function handleGenerate() {
     setGenerating(true);
-    try { await fetch('/api/rotation/generate', { method:'POST' }); fetchData(); }
+    try {
+      const res = await fetch('/api/rotation/generate', { method:'POST' });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        alert(`自動生成に失敗しました: ${d.error ?? res.status}`);
+      }
+      fetchData();
+    }
     catch (e) { console.error(e); }
     finally { setGenerating(false); }
   }

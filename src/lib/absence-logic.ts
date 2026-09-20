@@ -245,7 +245,11 @@ export async function enforceMinimumAttendance(sessionId: number, tx: TxClient =
   const phaseNumber = await getPhaseNumber(target.phaseId, tx);
 
   const unavailable = await getUnavailableUserIds(sessionId, tx);
-  const allUsers = await tx.user.findMany({ select: { id: true } });
+  // 朝礼参加対象の現役メンバーだけで数える（ランチのみの登録者や退会予定者を含めない）。
+  const allUsers = await tx.user.findMany({
+    where: { choreiStatus: 'active', deletedAt: null },
+    select: { id: true },
+  });
   const availableTotal = allUsers.filter((u) => !unavailable.has(u.id)).length;
 
   if (phaseNumber === 1) {

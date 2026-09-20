@@ -1,7 +1,6 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { prisma } from './prisma';
 import {
-  GRADE_ORDER,
   SESSION_DAYS,
   ROTATION_FIXED_UNTIL,
   ROTATION_NO_REPEAT_WINDOW,
@@ -324,29 +323,12 @@ export async function generateRotation(
     holidays.map((h) => h.date.toISOString().split('T')[0])
   );
 
-  // Sort users based on round
-  let sortedUsers;
-  if (roundNumber === 1) {
-    // Round 1: Lower grade first (E2a → E5)
-    sortedUsers = [...users].sort(
-      (a, b) =>
-        GRADE_ORDER.indexOf(a.grade as (typeof GRADE_ORDER)[number]) -
-        GRADE_ORDER.indexOf(b.grade as (typeof GRADE_ORDER)[number])
-    );
-  } else {
-    // Round 2, 3: Random order (Fisher-Yates)
-    sortedUsers = [...users];
-    for (let i = sortedUsers.length - 1; i > 0; i--) {
-      const j = Math.floor(rng() * (i + 1));
-      [sortedUsers[i], sortedUsers[j]] = [sortedUsers[j], sortedUsers[i]];
-    }
+  // 発話順は等級を参照せず毎回ランダム（Fisher-Yates）。
+  const sortedUsers = [...users];
+  for (let i = sortedUsers.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [sortedUsers[i], sortedUsers[j]] = [sortedUsers[j], sortedUsers[i]];
   }
-
-  // Get topics for the phase
-  const topics = await prisma.topic.findMany({
-    where: { phaseId },
-    orderBy: { weekNumber: 'asc' },
-  });
 
   // Generate session dates (Tue, Thu, Fri, skip holidays)
   const sessionDates = getSessionDates(
@@ -360,17 +342,16 @@ export async function generateRotation(
   for (let i = 0; i < sessionDates.length; i++) {
     const date = sessionDates[i];
     const weekNum = getWeekNumber(date, startDate);
-    const topicIndex = Math.min(weekNum - 1, topics.length - 1);
 
     if (i < sortedUsers.length) {
       sessions.push({
         date,
         phaseId,
         weekNumber: weekNum,
-        topicId: topics[topicIndex >= 0 ? topicIndex : 0].id,
+        topicId: null, // テーマは廃止（2026-09-18〜）
         speakerId: sortedUsers[i].id,
         startTime: '09:00',
-        endTime: '09:10',
+        endTime: '09:15',
         status: 'scheduled',
         roundNumber,
       });
@@ -380,10 +361,10 @@ export async function generateRotation(
         date,
         phaseId,
         weekNumber: weekNum,
-        topicId: topics[0].id,
+        topicId: null,
         speakerId: users.find((u) => u.role === 'admin')?.id || users[0].id,
         startTime: '09:00',
-        endTime: '09:10',
+        endTime: '09:15',
         status: 'scheduled',
         roundNumber,
         adminNote: `運営内棚卸し（${roundNumber}巡目終了後の振り返り）`,

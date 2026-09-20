@@ -30,6 +30,14 @@ interface SessionData {
   commentators?: { id: string; name: string; grade: string }[];
 }
 
+interface CommentOrderItem {
+  id: string;
+  name: string;
+  grade: string;
+  status: 'present' | 'absent' | 'unspoken' | 'leave_early';
+  commentPosition: number | null;
+}
+
 interface AttendanceData {
   id: number;
   userId: string;
@@ -55,6 +63,9 @@ export default function DashboardPage() {
   const [meetingUrl, setMeetingUrl] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [commentOrder, setCommentOrder] = useState<CommentOrderItem[]>([]);
+  const [commentOrderDrawn, setCommentOrderDrawn] = useState(false);
+  const [drawingOrder, setDrawingOrder] = useState(false);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -78,6 +89,14 @@ export default function DashboardPage() {
         setTodaySession(sessions[0]);
         const attRes = await fetch(`/api/attendance?sessionId=${sessions[0].id}`);
         setAttendance(await attRes.json());
+        if (sessions[0].phase.phaseNumber === 1) {
+          const coRes = await fetch(`/api/sessions/comment-order?sessionId=${sessions[0].id}`);
+          if (coRes.ok) {
+            const co = await coRes.json();
+            setCommentOrder(co.commentOrder ?? []);
+            setCommentOrderDrawn(!!co.drawn);
+          }
+        }
       }
       setAlerts(await alertsRes.json());
       if (lunchesRes.ok) setActiveLunches(await lunchesRes.json());
@@ -98,6 +117,27 @@ export default function DashboardPage() {
       else alert('抽選に失敗しました。対象の出席者が不足している可能性があります。');
     } catch (e) { console.error(e); }
     finally { setGenerating(false); }
+  }
+
+  // Phase1: その時点の出席者だけでコメント順を引き直す（当日の急な欠席に対応）。
+  async function drawCommentOrder() {
+    if (!todaySession) return;
+    setDrawingOrder(true);
+    try {
+      const res = await fetch('/api/sessions/comment-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: todaySession.id }),
+      });
+      if (res.ok) {
+        const co = await res.json();
+        setCommentOrder(co.commentOrder ?? []);
+        setCommentOrderDrawn(!!co.drawn);
+      } else {
+        alert('抽選に失敗しました。出席者がいない可能性があります。');
+      }
+    } catch (e) { console.error(e); }
+    finally { setDrawingOrder(false); }
   }
 
   const formatDate = (dateStr: string) => {
@@ -217,6 +257,46 @@ export default function DashboardPage() {
                     )}
 
                     <Separator className="bg-[#E0E4EF]" />
+
+                    {/* コメント順の抽選 — Phase1 のみ。
+                        当日7時の Cron でその日の出席者から抽選済み。朝礼中の急な欠席に
+                        合わせて、運営がここから引き直せる。 */}
+                    {todaySession.phase.phaseNumber === 1 && (
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium flex items-center gap-1.5">
+                          <MessageSquare className="h-3 w-3" />コメント順（出席者からランダム）
+                          {!commentOrderDrawn && (
+                            <Badge className="bg-[#F8F9FC] text-muted-foreground border border-[#E0E4EF] text-[9px] py-0 px-1.5">未確定</Badge>
+                          )}
+                        </p>
+                        <Button size="sm" variant="outline" onClick={drawCommentOrder}
+                          disabled={drawingOrder || todaySession.status === 'completed'}
+                          className="h-7 text-xs border-[#BDD9F5] text-[#0070CC] hover:bg-[#E8F2FB]">
+                          <Dices className={`h-3.5 w-3.5 mr-1 ${drawingOrder ? 'animate-spin' : ''}`} />
+                          {commentOrderDrawn ? '再抽選する' : '抽選する'}
+                        </Button>
+                      </div>
+                      {commentOrder.filter(c => c.commentPosition !== null).length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {commentOrder.filter(c => c.commentPosition !== null).map((c) => (
+                            <div key={c.id} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#F8F9FC] border border-[#E0E4EF]">
+                              <span className="w-5 h-5 rounded-full bg-[#00135D] flex items-center justify-center text-[10px] font-bold text-white">{c.commentPosition}</span>
+                              <span className="font-semibold text-xs text-[#1A1D23]">{c.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="h-14 border-2 border-dashed border-[#E0E4EF] rounded-lg flex items-center justify-center text-sm text-muted-foreground">
+                          コメントする出席者がいません
+                        </div>
+                      )}
+                      <p className="text-[10px] text-muted-foreground mt-2">
+                        ※ 等級に関係なく完全ランダム。欠席・聴講のみの方は除外されます（途中退出は含みます）。
+                      </p>
+                      <Separator className="bg-[#E0E4EF] my-4" />
+                    </div>
+                    )}
 
                     {/* Commentator lottery — Phase 2/3 のみ。
                         Phase1 は参加者全員がコメント順で発言するため応答者（コメンテーター）の概念がなく、

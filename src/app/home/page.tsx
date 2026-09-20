@@ -80,6 +80,7 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [upcomingSessions, setUpcomingSessions] = useState<SessionData[]>([]);
   const [upcomingCommentOrders, setUpcomingCommentOrders] = useState<Record<number, CommentOrderItem[]>>({});
+  const [upcomingCommentOrderDrawn, setUpcomingCommentOrderDrawn] = useState<Record<number, boolean>>({});
   const [phaseInfo, setPhaseInfo] = useState<PhaseInfo[]>([]);
   const [activeLunches, setActiveLunches] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,13 +142,16 @@ export default function HomePage() {
         // Phase 1 の次回セッションはコメント順を事前取得
         const phase1Upcoming = upcoming.filter(s => s.phase.phaseNumber === 1);
         const orders: Record<number, CommentOrderItem[]> = {};
+        const drawnFlags: Record<number, boolean> = {};
         await Promise.all(phase1Upcoming.map(async (s) => {
           const r = await fetch(`/api/sessions/comment-order?sessionId=${s.id}`);
           if (r.ok) {
             const d = await r.json();
             orders[s.id] = d.commentOrder || [];
+            drawnFlags[s.id] = !!d.drawn;
           }
         }));
+        setUpcomingCommentOrderDrawn(drawnFlags);
         setUpcomingCommentOrders(orders);
       }
       if (phasesRes.ok) {
@@ -426,7 +430,8 @@ export default function HomePage() {
                   {isP1 && order.length > 0 && (
                     <div className="mt-3 bg-[#F8F9FC] border border-[#E0E4EF] rounded-lg p-3">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-widest mb-2 flex items-center gap-1">
-                        <MessageSquare className="h-3 w-3" />コメント順（予定）
+                        <MessageSquare className="h-3 w-3" />
+                        {upcomingCommentOrderDrawn[s.id] ? 'コメント順' : 'コメント順（仮・当日7時に抽選）'}
                       </p>
                       <div className="flex flex-wrap gap-2">
                         {order.filter(c => c.commentPosition !== null).map(c => {

@@ -7,6 +7,7 @@ import {
   enforceMinimumAttendance,
 } from '@/lib/absence-logic';
 import { healFutureSpeakers } from '@/lib/rotation';
+import { drawCommentOrder, getCommentOrder } from '@/lib/comment-order';
 import { notifyChat } from '@/lib/notify';
 
 // Always run at request time (never prerender/cache this handler).
@@ -19,6 +20,7 @@ export const dynamic = 'force-dynamic';
  * current day's session(s):
  *   - Reflect absences declared up to the cutoff (previous day 23:59 JST).
  *   - If the day's speaker is absent, pull successors forward (reflowSpeakers).
+ *   - Phase 1: draw the comment order from the members present that day.
  *   - Phase 2/3: re-select respondents to drop absentees and lock them in
  *     (commentatorsPreset = true).
  *   - Auto-cancel sessions that fall below the minimum attendance.
@@ -65,6 +67,7 @@ export async function GET(request: Request) {
         phase: s.phase.phaseNumber,
         speakerReflowed: false,
         commentatorsFinalised: false,
+        commentOrderDrawn: false,
         cancelled: false,
       };
 
@@ -76,7 +79,15 @@ export async function GET(request: Request) {
         r.speakerReflowed = true;
       }
 
-      // 2) Phase 2/3 → lock in respondents, dropping any absentees.
+      // 2a) Phase 1 → その日の出席者だけでコメント順を抽選して確定する。
+      //     既に抽選済みなら引き直さない（順番がバタつかないよう、当日の欠席は
+      //     表示時に番号から外すだけにする。引き直しは管理者の操作で行う）。
+      if (s.phase.phaseNumber === 1 && s.commentOrderDrawnAt === null) {
+        await drawCommentOrder(s.id, prisma);
+        r.commentOrderDrawn = true;
+      }
+
+      // 2b) Phase 2/3 → lock in respondents, dropping any absentees.
       if (s.phase.phaseNumber !== 1) {
         const hasUnavailableCommentator = s.commentators.some((c) => unavailable.has(c.id));
         if (!s.commentatorsPreset || hasUnavailableCommentator) {
@@ -114,16 +125,22 @@ export async function GET(request: Request) {
     if (finalised.length > 0) {
       const base = process.env.NEXTAUTH_URL
         || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '');
-      const lines = finalised.map((s) => {
-        const speaker = s.speaker?.name ?? '未定（延期）';
-        const respondents =
-          s.phase.phaseNumber === 1
-            ? 'コメント順で参加者全員'
-            : s.commentators.length > 0
-              ? s.commentators.map((c) => c.name).join('、')
-              : '未定';
-        return `・発話者: ${speaker} / 応答: ${respondents}`;
-      });
+      const lines = await Promise.all(
+        finalised.map(async (s) => {
+          const speaker = s.speaker?.name ?? '未定（延期）';
+          if (s.phase.phaseNumber === 1) {
+            const co = await getCommentOrder(s.id, prisma);
+            const order = (co?.commentOrder ?? [])
+              .filter((e) => e.commentPosition !== null)
+              .map((e) => e.name)
+              .join(' → ');
+            return `・発話者: ${speaker} / コメント順: ${order || '未定'}`;
+          }
+          const respondents =
+            s.commentators.length > 0 ? s.commentators.map((c) => c.name).join('、') : '未定';
+          return `・発話者: ${speaker} / 応答: ${respondents}`;
+        })
+      );
       await notifyChat({
         text: `【本日の朝礼】${jstDateStr}\n${lines.join('\n')}`,
         linkUrl: base ? `${base}/home` : undefined,

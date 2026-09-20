@@ -5,16 +5,16 @@ import { pickCommentators } from '@/lib/absence-logic';
 
 // [12] Phase 1 sessions do not have the commentator concept
 export async function POST(request: Request) {
-  const session = await requireAdmin();
-
-  const body = await request.json();
-  const { sessionId, count = 2 } = body;
-
-  if (!sessionId) {
-    return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
-  }
-
   try {
+    await requireAdmin();
+
+    const body = await request.json().catch(() => null);
+    const sessionId = Number(body?.sessionId);
+    const count = Number(body?.count ?? 2);
+    if (!Number.isInteger(sessionId)) {
+      return NextResponse.json({ error: 'Missing sessionId' }, { status: 400 });
+    }
+
     // 1. 対象セッションを取得（メイン発話者を知るため）+ Phase 情報
     const targetSession = await prisma.session.findUnique({
       where: { id: sessionId },
@@ -61,7 +61,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(updatedSession.commentators);
   } catch (error) {
-    console.error('Failed to generate commentators:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return handleApiError(error);
   }
 }

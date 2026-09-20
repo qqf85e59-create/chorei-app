@@ -77,6 +77,7 @@ model User {
   attendances       Attendance[]
   absenceRequests   AbsenceRequest[]
   commentatorViews  CommentatorView[]
+  commentOrders     SessionCommentOrder[]
   configHistories   ConfigHistory[]  @relation("ConfigHistoryChangedBy")
   notifications     Notification[]
 
@@ -139,6 +140,8 @@ model Session {
   roundNumber Int       @default(1)
   commentatorsUpdatedAt DateTime?
   commentatorsPreset    Boolean   @default(false)
+  // Phase1 のコメント順を抽選した日時（null = 未抽選。当日7時の Cron で確定する）
+  commentOrderDrawnAt   DateTime?
 
   phase            Phase             @relation(fields: [phaseId], references: [id])
   topic            Topic?            @relation(fields: [topicId], references: [id])
@@ -148,6 +151,7 @@ model Session {
   absenceRequests  AbsenceRequest[]
   commentatorViews CommentatorView[]
   notifications    Notification[]
+  commentOrder     SessionCommentOrder[]
 
   @@index([phaseId])
   @@index([speakerId])
@@ -229,6 +233,23 @@ model ConfigHistory {
   changedByUser User @relation("ConfigHistoryChangedBy", fields: [changedBy], references: [id])
 
   @@index([configKey, changedAt])
+}
+
+/**
+ * Phase1 のコメント順（抽選結果）。1セッションにつき出席者ぶんの行を持つ。
+ * position は抽選時点の並び順。欠席・聴講のみに変わった人は表示時に番号から外す。
+ */
+model SessionCommentOrder {
+  id        Int    @id @default(autoincrement())
+  sessionId Int
+  userId    String
+  position  Int
+
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, userId])
+  @@index([sessionId])
 }
 
 model CommentatorView {

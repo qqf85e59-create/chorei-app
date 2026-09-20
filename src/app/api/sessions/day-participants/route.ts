@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireUser } from '@/lib/api-auth';
+import { getCommentOrder } from '@/lib/comment-order';
 
 /**
  * GET /api/sessions/day-participants?sessionId=N
@@ -12,17 +13,6 @@ import { requireUser } from '@/lib/api-auth';
  *   - order: Phase1=コメント順、Phase2+=応答者順（応答者のみ）、それ以外は null
  *   - status: present / leave_early / unspoken / absent（欠席申請と出席記録の両方を反映）
  */
-
-// Phase1 のコメント順に使う決定的乱数（comment-order と同一アルゴリズム）
-function mulberry32(seed: number) {
-  return () => {
-    seed |= 0;
-    seed = (seed + 0x6d2b79f5) | 0;
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
 
 type Status = 'present' | 'absent' | 'unspoken' | 'leave_early';
 
@@ -79,21 +69,13 @@ export async function GET(request: Request) {
 
     const others = users.filter((u) => u.id !== s.speakerId);
 
-    // Phase1: コメント順（present / leave_early に連番）を決定的シャッフルで付与
+    // Phase1: コメント順は抽選結果（未抽選ならセッションID基準の仮の並び）を使う。
     const posMap = new Map<string, number | null>();
+    let commentOrderDrawn = false;
     if (phaseNumber === 1) {
-      const commenters = [...others].sort((a, b) => a.id.localeCompare(b.id));
-      const rand = mulberry32(sessionId);
-      for (let i = commenters.length - 1; i > 0; i--) {
-        const j = Math.floor(rand() * (i + 1));
-        [commenters[i], commenters[j]] = [commenters[j], commenters[i]];
-      }
-      let pos = 1;
-      for (const u of commenters) {
-        const st = statusOf(u.id);
-        const active = st === 'present' || st === 'leave_early';
-        posMap.set(u.id, active ? pos++ : null);
-      }
+      const co = await getCommentOrder(sessionId);
+      commentOrderDrawn = co?.drawn ?? false;
+      for (const e of co?.commentOrder ?? []) posMap.set(e.id, e.commentPosition);
     }
 
     const members = others.map((u) => {
@@ -123,7 +105,7 @@ export async function GET(request: Request) {
       return a.name.localeCompare(b.name, 'ja');
     });
 
-    return NextResponse.json({ phaseNumber, speaker, members });
+    return NextResponse.json({ phaseNumber, speaker, members, commentOrderDrawn });
   } catch (err) {
     console.error('[GET /api/sessions/day-participants]', err);
     return NextResponse.json(

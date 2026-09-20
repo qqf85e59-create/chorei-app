@@ -18,6 +18,8 @@ interface Member {
 }
 interface DayData {
   phaseNumber: number;
+  /** Phase1: コメント順が当日抽選で確定済みか（未確定なら仮の並び）。 */
+  commentOrderDrawn?: boolean;
   speaker: { id: string; name: string; grade: string; status: Status } | null;
   members: Member[];
 }
@@ -90,7 +92,14 @@ export function DayParticipantsCard({
         <p className="text-xs font-bold text-[#00135D] flex items-center gap-1.5">
           <Users className="h-3.5 w-3.5 text-[#0070CC]" />本日の参加者
         </p>
-        <span className="text-[10px] text-muted-foreground">出席 {activeCount} 名</span>
+        <div className="flex items-center gap-1.5">
+          {!isP2 && !data.commentOrderDrawn && (
+            <Badge className="bg-[#F8F9FC] text-muted-foreground border border-[#E0E4EF] text-[10px] py-0 px-1.5">
+              コメント順 未確定
+            </Badge>
+          )}
+          <span className="text-[10px] text-muted-foreground">出席 {activeCount} 名</span>
+        </div>
       </div>
       <CardContent className="p-4 space-y-2">
         {/* 発話者 */}
@@ -155,7 +164,9 @@ export function DayParticipantsCard({
         <p className="text-[10px] text-muted-foreground pt-1">
           {isP2
             ? '※ 発話者＝話者、応答者＝問いを置く担当。欠席・聴講のみの方は薄く表示されます。30秒ごとに自動更新。'
-            : '※ 番号はコメント順。欠席・聴講のみの方はスキップされます。30秒ごとに自動更新。'}
+            : data.commentOrderDrawn
+              ? '※ 番号はコメント順（当日の出席者から完全ランダムに抽選）。欠席・聴講のみの方はスキップされます。30秒ごとに自動更新。'
+              : '※ 番号は仮のコメント順。当日7時に出席者だけで抽選して確定します。30秒ごとに自動更新。'}
         </p>
       </CardContent>
     </Card>
