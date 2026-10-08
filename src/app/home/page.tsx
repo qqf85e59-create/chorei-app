@@ -15,6 +15,7 @@ import {
 import { SESSION_STRUCTURE, formatDateUTC, getTodayStr } from '@/lib/constants';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 import { DayParticipantsCard } from '@/components/day-participants-card';
+import { PhaseShowcaseCard, PHASE_SHOWCASE_DATE } from '@/components/phase-showcase-card';
 
 interface SessionData {
   id: number;
@@ -262,6 +263,15 @@ export default function HomePage() {
                 )}
               </div>
             </Card>
+          )}
+
+          {/* ── フェーズ1・2の見比べ（特定日のみ） ── */}
+          {todaySession && todayStr === PHASE_SHOWCASE_DATE && (
+            <PhaseShowcaseCard
+              sessionId={todaySession.id}
+              speakerName={todaySession.speaker?.name ?? null}
+              phaseNames={Object.fromEntries(phaseInfo.map(ph => [ph.phaseNumber, ph.name]))}
+            />
           )}
 
           {/* ── 本日の朝礼（コンパクト）＋ 欠席連絡ボックス ── */}
