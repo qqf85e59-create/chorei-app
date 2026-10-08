@@ -14,6 +14,7 @@ import {
   MessageSquare, FileText, Video, Utensils, ChevronRight
 } from 'lucide-react';
 import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT, getTodayStr, phaseLabel } from '@/lib/constants';
+import { PhaseShowcaseCard, PHASE_SHOWCASE_DATE } from '@/components/phase-showcase-card';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 import { DayParticipantsCard } from '@/components/day-participants-card';
 
@@ -182,6 +183,15 @@ export default function DashboardPage() {
 
           {/* ── LEFT: Session + Next commentators + Attendance ── */}
           <div className="lg:col-span-2 space-y-5">
+
+            {/* フェーズ1・2の見比べ（特定日のみ） */}
+            {todaySession && getTodayStr() === PHASE_SHOWCASE_DATE && (
+              <PhaseShowcaseCard
+                sessionId={todaySession.id}
+                speakerName={todaySession.speaker?.name ?? null}
+                phaseNames={{}}
+              />
+            )}
 
             {/* Today's session card */}
             <Card className="border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden">
