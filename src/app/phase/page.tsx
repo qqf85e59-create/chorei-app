@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { TrendingUp, CheckCircle2, Circle, Calendar, Clock, Users, MessageCircle } from 'lucide-react';
+import { PHASE_1_1_FROM, phaseLabel } from '@/lib/constants';
 
 interface PhaseData {
   id: number;
@@ -17,7 +18,35 @@ interface PhaseData {
   description: string | null;
   _count: { sessions: number };
   /** 実際に回がある期間。中断をはさんで再開した場合は複数になる。 */
-  periods?: { start: string; end: string }[];
+  periods?: { start: string; end: string; count?: number }[];
+  /** 画面上の番号（"1" / "1.1" / "2"）。 */
+  label: string;
+}
+
+/**
+ * 第1フェーズは 9/18 以降を「第1.1フェーズ」として別カードに分ける
+ * （データ上は同じフェーズ。期間と回数は実際の回から出す）。
+ */
+function splitPhases(phases: Omit<PhaseData, 'label'>[]): PhaseData[] {
+  return phases.flatMap((p) => {
+    const periods = p.periods ?? [];
+    const later = periods.filter((x) => x.start.slice(0, 10) >= PHASE_1_1_FROM);
+    if (p.phaseNumber !== 1 || later.length === 0 || later.length === periods.length) {
+      return [{ ...p, label: phaseLabel(p.phaseNumber, periods[0]?.start) }];
+    }
+    const earlier = periods.filter((x) => x.start.slice(0, 10) < PHASE_1_1_FROM);
+    const sum = (xs: typeof periods) => xs.reduce((n, x) => n + (x.count ?? 0), 0);
+    return [
+      { ...p, label: '1', periods: earlier, _count: { sessions: sum(earlier) } },
+      {
+        ...p,
+        label: '1.1',
+        periods: later,
+        _count: { sessions: sum(later) },
+        description: '進め方を見直して再開。火・金に開催し、テーマなしで話したいことを自由に。コメント順は当日の出席者から抽選します。',
+      },
+    ];
+  });
 }
 
 /** 表示・判定に使う期間（回が無いフェーズは登録上の開始〜終了日）。 */
@@ -59,7 +88,7 @@ export default function PhasePage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/phases').then(r => r.json()).then(setPhases),
+      fetch('/api/phases').then(r => r.json()).then((ps) => setPhases(splitPhases(ps))),
       fetch('/api/users').then(r => r.json()).then((users: { id: string }[]) => setUserCount(users.length)),
     ]).catch(console.error).finally(() => setLoading(false));
   }, []);
@@ -100,7 +129,7 @@ export default function PhasePage() {
           {phases.map((phase, i) => {
             const status = getStatus(phase);
             return (
-              <div key={phase.id} className="flex items-center flex-1">
+              <div key={phase.label} className="flex items-center flex-1">
                 <div className="flex flex-col items-center gap-2">
                   <div className={`w-11 h-11 rounded-full flex items-center justify-center transition-all ${
                     status==='completed' ? 'bg-[#047857]' :
@@ -108,11 +137,11 @@ export default function PhasePage() {
                     'bg-[#E0E4EF]'
                   }`}>
                     {status==='completed' ? <CheckCircle2 className="h-5 w-5 text-white" /> :
-                     status==='current'   ? <span className="text-sm font-bold text-white">{phase.phaseNumber}</span> :
+                     status==='current'   ? <span className="text-sm font-bold text-white">{phase.label}</span> :
                      <Circle className="h-5 w-5 text-muted-foreground" />}
                   </div>
                   <p className={`text-[11px] font-semibold whitespace-nowrap ${status==='current'?'text-[#00135D]':'text-muted-foreground'}`}>
-                    第{phase.phaseNumber}フェーズ
+                    第{phase.label}フェーズ
                   </p>
                 </div>
                 {i < phases.length - 1 && (
@@ -128,11 +157,11 @@ export default function PhasePage() {
           {phases.map((phase, i) => {
             const status = getStatus(phase);
             const progress = getProgress(phase);
-            const cfg = PHASE_CONFIG[i] || PHASE_CONFIG[0];
+            const cfg = PHASE_CONFIG[phase.phaseNumber - 1] || PHASE_CONFIG[0];
             const IconComponent = cfg.icon;
             const { start: s, end: e } = spanOf(phase);
             return (
-              <Card key={phase.id}
+              <Card key={phase.label}
                 className={`border-[#E0E4EF] shadow-[0_2px_12px_rgba(0,19,93,0.07)] rounded-xl overflow-hidden transition-all ${status==='current'?'shadow-[0_4px_20px_rgba(0,19,93,0.15)]':''}`}>
                 <div className={`bg-gradient-to-r ${cfg.gradient} px-6 py-5 flex items-center justify-between relative overflow-hidden`}>
                   <div className="absolute top-[-20px] right-[-20px] w-24 h-24 rounded-full bg-white/[0.06]" />
@@ -141,7 +170,7 @@ export default function PhasePage() {
                       <IconComponent className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                      <p className="text-base font-bold text-white tracking-tight">第{phase.phaseNumber}フェーズ：{phase.name}</p>
+                      <p className="text-base font-bold text-white tracking-tight">第{phase.label}フェーズ：{phase.name}</p>
                       <p className="text-xs text-white/70 mt-0.5 flex items-center gap-1.5">
                         <Calendar className="h-3 w-3" />
                         {periodLabel(phase)}

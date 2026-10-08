@@ -2,21 +2,24 @@ import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { requireUser, requireAdmin, handleApiError } from '@/lib/api-auth';
 
-/** 45日以上あいたところで区切り、実際に開催している期間を返す。 */
-function toPeriods(dates: Date[]): { start: string; end: string }[] {
+/** 45日以上あいたところで区切り、実際に開催している期間（と期間内の回数）を返す。 */
+function toPeriods(dates: Date[]): { start: string; end: string; count: number }[] {
   if (dates.length === 0) return [];
   const GAP_MS = 45 * 86400000;
-  const periods: { start: string; end: string }[] = [];
+  const periods: { start: string; end: string; count: number }[] = [];
   let start = dates[0];
   let prev = dates[0];
+  let count = 1;
   for (const d of dates.slice(1)) {
     if (d.getTime() - prev.getTime() > GAP_MS) {
-      periods.push({ start: start.toISOString(), end: prev.toISOString() });
+      periods.push({ start: start.toISOString(), end: prev.toISOString(), count });
       start = d;
+      count = 0;
     }
     prev = d;
+    count++;
   }
-  periods.push({ start: start.toISOString(), end: prev.toISOString() });
+  periods.push({ start: start.toISOString(), end: prev.toISOString(), count });
   return periods;
 }
 

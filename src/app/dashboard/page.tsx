@@ -13,7 +13,7 @@ import {
   AlertTriangle, UserCheck, UserX, UserMinus, Clock, Dices,
   MessageSquare, FileText, Video, Utensils, ChevronRight
 } from 'lucide-react';
-import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT, getTodayStr } from '@/lib/constants';
+import { DAY_LABELS, GRADE_LABELS, GRAND_RULE_TEXT, getTodayStr, phaseLabel } from '@/lib/constants';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 import { DayParticipantsCard } from '@/components/day-participants-card';
 
@@ -204,7 +204,7 @@ export default function DashboardPage() {
                       <div>
                         <p className="text-[10px] text-muted-foreground uppercase tracking-widest font-medium mb-1.5">フェーズ</p>
                         <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-xs">
-                          第{todaySession.phase.phaseNumber}フェーズ · {todaySession.phase.name}
+                          第{phaseLabel(todaySession.phase.phaseNumber, todaySession.date)}フェーズ · {todaySession.phase.name}
                         </Badge>
                       </div>
                     </div>

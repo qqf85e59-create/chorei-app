@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { CalendarDays, ChevronLeft, ChevronRight, Mic, BookOpen } from 'lucide-react';
-import { DAY_LABELS, GRADE_LABELS, getTodayStr } from '@/lib/constants';
+import { DAY_LABELS, GRADE_LABELS, getTodayStr, phaseLabel } from '@/lib/constants';
 
 interface SessionData {
   id: number;
@@ -209,7 +209,7 @@ export default function CalendarPage() {
                 { label:'日時', value:`${new Date(selectedSession.date).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'})} ${selectedSession.startTime}〜${selectedSession.endTime}` },
                 { label:'発話者', value:`${selectedSession.speaker?.name}（${GRADE_LABELS[selectedSession.speaker?.grade] || selectedSession.speaker?.grade}）` },
                 ...(selectedSession.topic ? [{ label:'主題', value:selectedSession.topic.topicText }] : []),
-                { label:'フェーズ', value:`第${selectedSession.phase.phaseNumber}フェーズ · ${selectedSession.phase.name}` },
+                { label:'フェーズ', value:`第${phaseLabel(selectedSession.phase.phaseNumber, selectedSession.date)}フェーズ · ${selectedSession.phase.name}` },
                 { label:'状態', value:selectedSession.status==='completed'?'完了':selectedSession.status==='cancelled'?'中止':'予定' },
               ].map(({ label, value }) => (
                 <div key={label}>

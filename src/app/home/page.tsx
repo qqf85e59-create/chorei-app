@@ -12,7 +12,7 @@ import {
   UserMinus, History, MessageSquare,
   Video, AlertTriangle, ChevronRight, Bell, Users, TrendingUp, Utensils
 } from 'lucide-react';
-import { SESSION_STRUCTURE, formatDateUTC, getTodayStr } from '@/lib/constants';
+import { SESSION_STRUCTURE, formatDateUTC, getTodayStr, phaseLabel } from '@/lib/constants';
 import { NextCommentatorsCard } from '@/components/next-commentators-card';
 import { DayParticipantsCard } from '@/components/day-participants-card';
 import { PhaseShowcaseCard, PHASE_SHOWCASE_DATE } from '@/components/phase-showcase-card';
@@ -56,13 +56,13 @@ interface PhaseInfo {
   description: string | null;
   _count: { sessions: number };
   /** 実際に回がある期間。中断をはさんで再開した場合は複数になる。 */
-  periods?: { start: string; end: string }[];
+  periods?: { start: string; end: string; count?: number }[];
 }
 
 /** 今日を含む（なければ最後の）開催期間。フェーズの登録期間ではなく実績で出す。 */
 function currentPeriod(p: PhaseInfo, todayStr: string) {
   const periods = p.periods ?? [];
-  if (periods.length === 0) return { start: p.startDate, end: p.endDate };
+  if (periods.length === 0) return { start: p.startDate, end: p.endDate, count: p._count.sessions };
   return (
     periods.find((x) => x.start.split('T')[0] <= todayStr && x.end.split('T')[0] >= todayStr) ??
     periods[periods.length - 1]
@@ -227,14 +227,14 @@ export default function HomePage() {
               <div className="px-5 py-3.5 border-b border-[#E0E4EF] flex items-center justify-between">
                 <p className="text-sm font-bold text-[#00135D] flex items-center gap-2">
                   <TrendingUp className="h-3.5 w-3.5 text-[#0070CC]" />
-                  第{displayPhase.phaseNumber}フェーズ · {displayPhase.name}
+                  第{phaseLabel(displayPhase.phaseNumber, displayPeriod?.start)}フェーズ · {displayPhase.name}
                 </p>
                 <div className="flex items-center gap-2">
                   <Badge className={`text-white text-[10px] px-2 py-0 ${isActivePhase ? 'bg-[#0070CC]' : 'bg-[#F59E0B]'}`}>
                     {isActivePhase ? '進行中' : '準備中'}
                   </Badge>
                   <span className="text-[10px] text-muted-foreground">
-                    {new Date(displayPeriod!.start).getUTCMonth()+1}月{new Date(displayPeriod!.start).getUTCDate()}日〜{new Date(displayPeriod!.end).getUTCMonth()+1}月{new Date(displayPeriod!.end).getUTCDate()}日　全{displayPhase._count.sessions}回
+                    {new Date(displayPeriod!.start).getUTCMonth()+1}月{new Date(displayPeriod!.start).getUTCDate()}日〜{new Date(displayPeriod!.end).getUTCMonth()+1}月{new Date(displayPeriod!.end).getUTCDate()}日　全{displayPeriod!.count ?? displayPhase._count.sessions}回
                   </span>
                 </div>
               </div>
@@ -292,7 +292,7 @@ export default function HomePage() {
                       {todaySession.startTime}〜{todaySession.endTime}
                     </div>
                     <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[9px] px-1.5 py-0">
-                      第{todaySession.phase.phaseNumber}F · {todaySession.phase.name}
+                      第{phaseLabel(todaySession.phase.phaseNumber, todaySession.date)}F · {todaySession.phase.name}
                     </Badge>
                     <div className="space-y-1.5">
                       <div>
@@ -426,7 +426,7 @@ export default function HomePage() {
                     <CalendarDays className="h-3.5 w-3.5" />次回の予定
                   </p>
                   <Badge className="bg-[#E8F2FB] text-[#0070CC] border-[#BDD9F5] text-[10px]">
-                    第{s.phase.phaseNumber}フェーズ
+                    第{phaseLabel(s.phase.phaseNumber, s.date)}フェーズ
                   </Badge>
                 </div>
                 <CardContent className="p-5">

@@ -99,6 +99,20 @@ export const SESSION_STRUCTURE: Record<number, FlowStep[]> = {
   ],
 };
 
+/**
+ * 第1.1フェーズの開始日。9/18 以降の第1フェーズ（火・金開催、テーマなし、
+ * コメント順は当日抽選）は進め方を変えたので、画面上は「1.1」と呼ぶ。
+ * データ上は第1フェーズ（phaseNumber=1）のままで、判定はすべて phaseNumber で行う。
+ */
+export const PHASE_1_1_FROM = '2026-09-18';
+
+/** 画面に出すフェーズ番号（"1" / "1.1" / "2" …）。date はその回（または期間の開始日）。 */
+export function phaseLabel(phaseNumber: number, date?: string | Date): string {
+  if (phaseNumber !== 1 || date == null) return String(phaseNumber);
+  const ymd = typeof date === 'string' ? date.slice(0, 10) : date.toISOString().slice(0, 10);
+  return ymd >= PHASE_1_1_FROM ? '1.1' : '1';
+}
+
 /** UTC ベースの日付フォーマット（タイムゾーン非依存） */
 export function formatDateUTC(dateStr: string): string {
   const d = new Date(dateStr);
